@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './index.css';
 import { AuthProvider, useUser, type Role } from './context/AuthContext';
+import { TicketProvider } from './context/TicketContext';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { CustomerView } from './pages/CustomerView';
@@ -11,8 +12,8 @@ import { ChatWorkspace } from './components/chat/ChatWorkspace';
 import { RightPanel } from './components/right-panel/RightPanel';
 
 export interface AppState {
-  activeConversationId: number;
-  setActiveConversationId: (id: number) => void;
+  activeConversationId: string;
+  setActiveConversationId: (id: string) => void;
 }
 
 const ProtectedRoute: React.FC<{ allowedRoles: Role[]; children: React.ReactNode }> = ({ allowedRoles, children }) => {
@@ -52,7 +53,7 @@ const AuthRouter: React.FC = () => {
 
 const MainRouter: React.FC = () => {
   const { user, isLoading } = useUser();
-  const [activeConversationId, setActiveConversationId] = useState(1);
+  const [activeConversationId, setActiveConversationId] = useState<string>('TCK-4821');
 
   if (isLoading) {
     return <div className="h-screen bg-background" />;
@@ -88,7 +89,9 @@ const MainRouter: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <MainRouter />
+      <TicketProvider>
+        <MainRouter />
+      </TicketProvider>
     </AuthProvider>
   );
 };

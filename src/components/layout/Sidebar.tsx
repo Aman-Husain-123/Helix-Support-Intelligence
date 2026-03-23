@@ -1,83 +1,8 @@
 import React, { useState } from 'react';
+import { useTickets, type TicketPriority } from '../../context/TicketContext';
+import { useUser } from '../../context/AuthContext';
 
-export interface Conversation {
-  id: number;
-  name: string;
-  initials: string;
-  color: string;
-  lastMessage: string;
-  time: string;
-  channel: 'web' | 'email' | 'phone' | 'slack';
-  unread?: number;
-  priority?: 'high' | 'medium' | 'low';
-  status: 'open' | 'pending' | 'resolved';
-  ticketId: string;
-}
-
-export const CONVERSATIONS: Conversation[] = [
-  {
-    id: 1,
-    name: 'Jordan Matthews',
-    initials: 'JM',
-    color: 'from-indigo-500 to-violet-600',
-    lastMessage: 'My last invoice looks higher than usual…',
-    time: '2m ago',
-    channel: 'web',
-    unread: 2,
-    priority: 'high',
-    status: 'open',
-    ticketId: '#4821',
-  },
-  {
-    id: 2,
-    name: 'Acme Inc.',
-    initials: 'AI',
-    color: 'from-emerald-500 to-teal-600',
-    lastMessage: 'The API integration keeps timing out.',
-    time: '18m ago',
-    channel: 'email',
-    priority: 'medium',
-    status: 'pending',
-    ticketId: '#4790',
-  },
-  {
-    id: 3,
-    name: 'Sarah Kim',
-    initials: 'SK',
-    color: 'from-rose-500 to-pink-600',
-    lastMessage: 'Can you help me reset my 2FA?',
-    time: '34m ago',
-    channel: 'web',
-    unread: 1,
-    status: 'open',
-    ticketId: '#4785',
-  },
-  {
-    id: 4,
-    name: 'DevCorp Trial',
-    initials: 'DC',
-    color: 'from-amber-400 to-orange-500',
-    lastMessage: 'We need the enterprise contract ASAP.',
-    time: '1h ago',
-    channel: 'slack',
-    priority: 'high',
-    status: 'open',
-    ticketId: '#4770',
-  },
-  {
-    id: 5,
-    name: 'Marcus Okafor',
-    initials: 'MO',
-    color: 'from-sky-500 to-blue-600',
-    lastMessage: 'Thanks! That solved my issue.',
-    time: '2h ago',
-    channel: 'email',
-    status: 'resolved',
-    ticketId: '#4751',
-  },
-];
-
-const channelIcon = (ch: Conversation['channel']) => {
+const channelIcon = (ch: string) => {
   switch (ch) {
     case 'web': return (
       <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,22 +27,16 @@ const channelIcon = (ch: Conversation['channel']) => {
   }
 };
 
-const priorityDot = (p?: 'high' | 'medium' | 'low') => {
+const priorityDot = (p?: TicketPriority) => {
   if (!p) return null;
-  const cls = { high: 'bg-rose-500', medium: 'bg-amber-400', low: 'bg-slate-500' }[p];
+  const cls = { urgent: 'bg-rose-600 animate-pulse', high: 'bg-rose-500', medium: 'bg-amber-400', low: 'bg-slate-500' }[p];
   return <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cls}`} />;
 };
 
 interface SidebarProps {
-  activeConversationId: number;
-  setActiveConversationId: (id: number) => void;
+  activeConversationId: string;
+  setActiveConversationId: (id: string) => void;
 }
-
-const inboxItems = ['All conversations', 'Assigned to me', 'Unassigned', 'Priority'] as const;
-const inboxCounts: Record<string, number | undefined> = {
-  'Unassigned': 12,
-  'Priority': 3,
-};
 
 const teamMembers = [
   { name: 'Alex Rivera', role: 'Support Lead', status: 'online', color: 'from-indigo-500 to-sky-400', initials: 'AR' },
@@ -134,16 +53,50 @@ const statusColor = (s: string) => {
 
 const channels = ['# general', '# billing', '# technical', '# escalations', '# product-feedback'];
 
+// Helper to generate a consistent color per customer string
+const getAvatarColor = (name: string) => {
+  const AVATAR_COLORS = [
+    'from-indigo-500 to-violet-600',
+    'from-emerald-500 to-teal-600',
+    'from-rose-500 to-pink-600',
+    'from-amber-400 to-orange-500',
+    'from-sky-500 to-blue-600',
+  ];
+  return AVATAR_COLORS[name.length % AVATAR_COLORS.length];
+};
+
+const getInitials = (name: string) => {
+  return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().substring(0, 2);
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiveConversationId }) => {
-  const [activeInbox, setActiveInbox] = useState('All conversations');
+  const { tickets } = useTickets();
+  const { user } = useUser();
+  const [activeInbox, setActiveInbox] = useState('All tickets');
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<'inbox' | 'team' | 'channels'>('inbox');
 
-  const filtered = CONVERSATIONS.filter(
+  const inboxItems = ['All tickets', 'Assigned to me', 'Unassigned', 'Priority'] as const;
+
+  const inboxCounts = {
+    'All tickets': tickets.length,
+    'Assigned to me': tickets.filter(t => t.assignedTo === user?.name).length,
+    'Unassigned': tickets.filter(t => !t.assignedTo).length,
+    'Priority': tickets.filter(t => t.priority === 'urgent' || t.priority === 'high').length,
+  };
+
+  // 1. Filter tickets based on active tab
+  let visibleTickets = tickets;
+  if (activeInbox === 'Assigned to me') visibleTickets = tickets.filter(t => t.assignedTo === user?.name);
+  if (activeInbox === 'Unassigned') visibleTickets = tickets.filter(t => !t.assignedTo);
+  if (activeInbox === 'Priority') visibleTickets = tickets.filter(t => t.priority === 'urgent' || t.priority === 'high');
+
+  // 2. Filter by Search
+  const filtered = visibleTickets.filter(
     (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.lastMessage.toLowerCase().includes(search.toLowerCase()) ||
-      c.ticketId.includes(search)
+      c.customerName.toLowerCase().includes(search.toLowerCase()) ||
+      c.id.toLowerCase().includes(search.toLowerCase()) ||
+      c.subject.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -157,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiv
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversations…"
+            placeholder="Search tickets…"
             className="flex-1 bg-transparent text-[12px] text-slate-200 placeholder:text-slate-500 outline-none"
           />
           {search && (
@@ -196,8 +149,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiv
                     <button
                       onClick={() => setActiveInbox(item)}
                       className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ${activeInbox === item
-                          ? 'bg-indigo-500/15 text-slate-100 shadow-sm'
-                          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        ? 'bg-indigo-500/15 text-slate-100 shadow-sm'
+                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                         }`}
                     >
                       <span className="text-[12px]">{item}</span>
@@ -216,47 +169,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiv
             {/* Conversation list */}
             <div>
               <div className="mb-1 flex items-center justify-between px-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Conversations</p>
-                <button className="text-[10px] text-indigo-400 hover:text-indigo-300">New +</button>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Tickets</p>
               </div>
               <ul className="space-y-0.5">
-                {filtered.map((conv) => (
-                  <li key={conv.id}>
+                {filtered.map((ticket) => (
+                  <li key={ticket.id}>
                     <button
-                      onClick={() => setActiveConversationId(conv.id)}
-                      className={`group flex w-full gap-2.5 rounded-xl px-2 py-2 text-left transition animate-fade-in ${conv.id === activeConversationId
-                          ? 'bg-indigo-500/15 ring-1 ring-indigo-500/30'
-                          : 'hover:bg-slate-800/50'
+                      onClick={() => setActiveConversationId(ticket.id)}
+                      className={`group flex w-full gap-2.5 rounded-xl px-2 py-2 text-left transition animate-fade-in ${ticket.id === activeConversationId
+                        ? 'bg-indigo-500/15 ring-1 ring-indigo-500/30'
+                        : 'hover:bg-slate-800/50'
                         }`}
                     >
                       {/* Avatar */}
-                      <div className={`relative mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${conv.color} text-[11px] font-bold text-white shadow-sm`}>
-                        {conv.initials}
-                        {conv.status === 'resolved' && (
+                      <div className={`relative mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(ticket.customerName)} text-[11px] font-bold text-white shadow-sm`}>
+                        {getInitials(ticket.customerName)}
+                        {ticket.status === 'resolved' && (
                           <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 ring-1 ring-sidebar text-white">
                             <svg className="h-2 w-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                             </svg>
                           </span>
                         )}
+                        {ticket.status === 'closed' && (
+                          <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 ring-1 ring-sidebar text-white" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          {priorityDot(conv.priority)}
-                          <span className="truncate text-[12px] font-medium text-slate-200 group-hover:text-slate-100">{conv.name}</span>
-                          <span className="ml-auto flex-shrink-0 text-[10px] text-slate-500">{conv.time}</span>
+                          {priorityDot(ticket.priority)}
+                          <span className="truncate text-[12px] font-medium text-slate-200 group-hover:text-slate-100">{ticket.customerName}</span>
+                          <span className="ml-auto flex-shrink-0 text-[10px] text-slate-500">{ticket.updatedAt}</span>
                         </div>
                         <div className="flex items-center gap-1 mt-0.5">
-                          <span className={`flex items-center gap-0.5 rounded text-[10px] px-1 py-0.5 ${conv.channel === 'web' ? 'text-sky-400' :
-                              conv.channel === 'email' ? 'text-violet-400' :
-                                conv.channel === 'slack' ? 'text-amber-400' : 'text-emerald-400'
+                          <span className={`flex items-center gap-0.5 rounded text-[10px] px-1 py-0.5 ${ticket.channel === 'web' ? 'text-sky-400' :
+                            ticket.channel === 'email' ? 'text-violet-400' :
+                              ticket.channel === 'slack' ? 'text-amber-400' : 'text-emerald-400'
                             }`}>
-                            {channelIcon(conv.channel)}
+                            {channelIcon(ticket.channel)}
                           </span>
-                          <span className="truncate text-[11px] text-slate-500">{conv.lastMessage}</span>
-                          {conv.unread && (
+                          <span className="truncate text-[11px] text-slate-500">{ticket.subject}</span>
+                          {ticket.unread > 0 && (
                             <span className="ml-auto flex-shrink-0 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
-                              {conv.unread}
+                              {ticket.unread}
                             </span>
                           )}
                         </div>
@@ -267,7 +222,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiv
                 {filtered.length === 0 && (
                   <li className="flex flex-col items-center gap-2 py-8 text-center">
                     <span className="text-2xl">🔍</span>
-                    <span className="text-[12px] text-slate-500">No conversations match</span>
+                    <span className="text-[12px] text-slate-500">No tickets match</span>
                   </li>
                 )}
               </ul>
@@ -325,12 +280,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeConversationId, setActiv
       <div className="border-t border-border px-3 py-3">
         <button className="flex w-full items-center gap-2.5 rounded-xl bg-surface/60 px-3 py-2 text-left transition hover:bg-surface">
           <div className="relative">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-[11px] font-bold text-white" />
+            <div className={`h-8 w-8 rounded-full bg-gradient-to-tr ${user?.avatarColor || 'from-indigo-500 to-cyan-400'} flex items-center justify-center text-[11px] font-bold text-white`}>
+              {user?.avatarInitials}
+            </div>
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1 ring-sidebar" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-medium text-slate-200">Alex Rivera</p>
-            <p className="text-[10px] text-slate-500">Support Lead · available</p>
+            <p className="text-[12px] font-medium text-slate-200">{user?.name || 'Agent'}</p>
+            <p className="text-[10px] text-slate-500">{user?.role} · available</p>
           </div>
           <svg className="h-3.5 w-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

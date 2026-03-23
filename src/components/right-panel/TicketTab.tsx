@@ -1,64 +1,16 @@
 import React, { useState } from 'react';
+import { useTickets } from '../../context/TicketContext';
 
 interface TicketTabProps {
-  conversationId: number;
+  conversationId: string;
 }
-
-const TICKET_DATA: Record<number, {
-  id: string;
-  title: string;
-  status: 'open' | 'pending' | 'resolved';
-  priority: 'high' | 'medium' | 'low';
-  customer: string;
-  email: string;
-  channel: string;
-  assignee: string;
-  sla: string;
-  created: string;
-  tags: string[];
-}> = {
-  1: {
-    id: 'TCK-4821', title: 'Invoice higher than expected', status: 'open', priority: 'high',
-    customer: 'Jordan Matthews', email: 'jordan@example.com', channel: 'Web chat',
-    assignee: 'Alex Rivera', sla: 'Respond in 4 min', created: 'Mar 23, 2026 10:02 AM',
-    tags: ['billing', 'plan-change', 'prorated'],
-  },
-  2: {
-    id: 'TCK-4790', title: 'API integration timeout', status: 'pending', priority: 'medium',
-    customer: 'Acme Inc.', email: 'dev@acme.com', channel: 'Email',
-    assignee: 'Priya Nair', sla: 'Respond in 2h', created: 'Mar 23, 2026 09:30 AM',
-    tags: ['api', 'integration', 'timeout'],
-  },
-  3: {
-    id: 'TCK-4785', title: '2FA reset request', status: 'open', priority: 'low',
-    customer: 'Sarah Kim', email: 'sarah.k@gmail.com', channel: 'Web chat',
-    assignee: 'Sam Cho', sla: 'Respond in 45 min', created: 'Mar 23, 2026 09:10 AM',
-    tags: ['security', '2fa', 'account'],
-  },
-  4: {
-    id: 'TCK-4770', title: 'Enterprise contract urgent', status: 'open', priority: 'high',
-    customer: 'DevCorp Trial', email: 'cto@devcorp.io', channel: 'Slack',
-    assignee: 'Leila Santos', sla: 'Respond in 30 min', created: 'Mar 23, 2026 08:45 AM',
-    tags: ['enterprise', 'contract', 'urgent'],
-  },
-  5: {
-    id: 'TCK-4751', title: 'Export missing rows bug', status: 'resolved', priority: 'medium',
-    customer: 'Marcus Okafor', email: 'm.okafor@corp.com', channel: 'Email',
-    assignee: 'Alex Rivera', sla: 'Resolved ✓', created: 'Mar 23, 2026 07:30 AM',
-    tags: ['bug', 'export', 'resolved'],
-  },
-};
-
-const RELATED_TICKETS = [
-  { id: 'TCK-4819', title: 'Billing confusion after upgrade', status: 'open', time: '1h ago', priority: 'medium' },
-  { id: 'TCK-4753', title: 'Invoice PDF download broken', status: 'resolved', time: '2d ago', priority: 'low' },
-];
 
 const statusBadge = (s: string) => {
   const styles: Record<string, string> = {
     open: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
     pending: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
     resolved: 'bg-slate-700/40 border-slate-600/20 text-slate-400',
+    closed: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
   };
   return (
     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${styles[s] ?? ''}`}>
@@ -68,22 +20,37 @@ const statusBadge = (s: string) => {
 };
 
 const priorityColor: Record<string, string> = {
+  urgent: 'text-rose-600 animate-pulse',
   high: 'text-rose-400',
   medium: 'text-amber-400',
   low: 'text-slate-400',
 };
 
+// Helper to generate a consistent color per customer string
+const getAvatarColor = (name: string) => {
+  const AVATAR_COLORS = [
+    'from-indigo-500 to-violet-600',
+    'from-emerald-500 to-teal-600',
+    'from-rose-500 to-pink-600',
+    'from-amber-400 to-orange-500',
+    'from-sky-500 to-blue-600',
+  ];
+  return AVATAR_COLORS[name.length % AVATAR_COLORS.length];
+};
+
+const getInitials = (name: string) => {
+  return name.split(' ').map((n) => n.charAt(0)).join('').toUpperCase().substring(0, 2);
+};
+
 export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
-  const ticket = TICKET_DATA[conversationId];
+  const { tickets, updateTicketStatus } = useTickets();
+  const ticket = tickets.find(t => t.id === conversationId);
   const [expanded, setExpanded] = useState(true);
 
   if (!ticket) return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
       <span className="text-3xl">🎟️</span>
       <p className="text-[12px] text-slate-400">No ticket for this conversation yet.</p>
-      <button className="mt-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-4 py-2 text-[12px] font-medium text-indigo-300 hover:bg-indigo-500/25 transition">
-        Create ticket
-      </button>
     </div>
   );
 
@@ -108,17 +75,16 @@ export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
           </svg>
         </div>
         <div className="px-3 pb-0.5">
-          <p className="text-[13px] font-semibold text-slate-100">{ticket.title}</p>
+          <p className="text-[13px] font-semibold text-slate-100">{ticket.subject}</p>
         </div>
 
         {expanded && (
           <div className="animate-slide-up">
             <dl className="mt-2 divide-y divide-border/50">
               {[
-                { label: 'Customer', value: ticket.customer },
-                { label: 'Email', value: ticket.email, mono: true },
+                { label: 'Customer', value: ticket.customerName },
                 { label: 'Channel', value: ticket.channel },
-                { label: 'Assignee', value: ticket.assignee },
+                { label: 'Assignee', value: ticket.assignedTo || 'Unassigned' },
                 {
                   label: 'Priority',
                   valueEl: (
@@ -128,15 +94,15 @@ export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
                   ),
                 },
                 {
-                  label: 'SLA',
+                  label: 'SLA Limit',
                   valueEl: (
-                    <span className={ticket.status === 'resolved' ? 'text-emerald-400' : 'text-rose-400 font-semibold'}>
-                      {ticket.sla}
+                    <span className={ticket.status === 'resolved' || ticket.status === 'closed' ? 'text-emerald-400' : 'text-rose-400 font-semibold'}>
+                      {ticket.sla_due_at ? new Date(ticket.sla_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown'}
                     </span>
                   ),
                 },
-                { label: 'Created', value: ticket.created },
-              ].map(({ label, value, valueEl, mono }) => (
+                { label: 'Updated', value: ticket.updatedAt },
+              ].map(({ label, value, valueEl, mono }: any) => (
                 <div key={label} className="flex items-center justify-between px-3 py-1.5">
                   <dt className="text-[11px] text-slate-500">{label}</dt>
                   <dd className={`text-[11px] text-slate-200 text-right truncate max-w-[60%] ${mono ? 'font-mono text-[10px]' : ''}`}>
@@ -148,11 +114,7 @@ export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1 px-3 py-2.5">
-              {ticket.tags.map((tag) => (
-                <span key={tag} className="rounded-md border border-border bg-slate-900/50 px-2 py-0.5 text-[10px] text-slate-400">
-                  #{tag}
-                </span>
-              ))}
+              <span className="rounded-md border border-border bg-slate-900/50 px-2 py-0.5 text-[10px] text-slate-400">#{ticket.status}</span>
               <button className="rounded-md border border-dashed border-slate-700 px-2 py-0.5 text-[10px] text-slate-500 hover:border-slate-500 hover:text-slate-300 transition">
                 + Add tag
               </button>
@@ -165,12 +127,12 @@ export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
           <button className="flex-1 rounded-lg border border-border bg-surface py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-slate-500 hover:text-slate-100">
             Reassign
           </button>
-          {ticket.status !== 'resolved' ? (
-            <button className="flex-1 rounded-lg bg-emerald-500/15 border border-emerald-500/20 py-1.5 text-[11px] font-medium text-emerald-400 transition hover:bg-emerald-500/25">
+          {ticket.status !== 'resolved' && ticket.status !== 'closed' ? (
+            <button onClick={() => updateTicketStatus(ticket.id, 'resolved')} className="flex-1 rounded-lg bg-emerald-500/15 border border-emerald-500/20 py-1.5 text-[11px] font-medium text-emerald-400 transition hover:bg-emerald-500/25">
               Resolve ✓
             </button>
           ) : (
-            <button className="flex-1 rounded-lg bg-amber-500/15 border border-amber-500/20 py-1.5 text-[11px] font-medium text-amber-400 transition hover:bg-amber-500/25">
+            <button onClick={() => updateTicketStatus(ticket.id, 'open')} className="flex-1 rounded-lg bg-amber-500/15 border border-amber-500/20 py-1.5 text-[11px] font-medium text-amber-400 transition hover:bg-amber-500/25">
               Re-open
             </button>
           )}
@@ -179,46 +141,25 @@ export const TicketTab: React.FC<TicketTabProps> = ({ conversationId }) => {
 
       {/* Customer summary */}
       <div className="rounded-xl border border-border bg-surface/50 p-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Customer</p>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Customer Details</p>
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-[11px] font-bold text-white">
-            {ticket.customer.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+          <div className={`h-8 w-8 rounded-full bg-gradient-to-br ${getAvatarColor(ticket.customerName)} flex items-center justify-center text-[11px] font-bold text-white`}>
+            {getInitials(ticket.customerName)}
           </div>
           <div>
-            <p className="text-[12px] font-medium text-slate-100">{ticket.customer}</p>
-            <p className="text-[10px] font-mono text-slate-500">{ticket.email}</p>
+            <p className="text-[12px] font-medium text-slate-100">{ticket.customerName}</p>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           {[
-            { label: 'Tickets', val: '7' },
+            { label: 'Tickets', val: tickets.filter(t => t.customerName === ticket.customerName).length.toString() },
             { label: 'CSAT', val: '4.8' },
-            { label: 'Since', val: '2023' },
+            { label: 'Since', val: '2025' },
           ].map(({ label, val }) => (
             <div key={label} className="rounded-lg border border-border bg-background/50 py-1.5">
               <p className="text-[13px] font-bold text-slate-100">{val}</p>
               <p className="text-[10px] text-slate-500">{label}</p>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Related tickets */}
-      <div>
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Related Tickets</p>
-        <div className="space-y-1.5">
-          {RELATED_TICKETS.map((t) => (
-            <button
-              key={t.id}
-              className="flex w-full flex-col rounded-lg border border-border bg-surface/50 px-2.5 py-2 text-left transition hover:border-indigo-500/40 hover:bg-surfaceHover"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[11px] text-slate-400">{t.id}</span>
-                {statusBadge(t.status)}
-              </div>
-              <p className="mt-0.5 text-[11px] text-slate-300 truncate">{t.title}</p>
-              <span className="mt-0.5 text-[10px] text-slate-500">{t.time}</span>
-            </button>
           ))}
         </div>
       </div>

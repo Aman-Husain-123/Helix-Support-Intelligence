@@ -2,7 +2,7 @@ import React from 'react';
 
 export interface Message {
   id: number;
-  from: 'customer' | 'agent' | 'ai';
+  from: 'customer' | 'agent' | 'ai' | 'system';
   name: string;
   initials: string;
   time: string;
@@ -20,8 +20,9 @@ const EMOJI_REACTIONS = ['👍', '❤️', '😄', '🎯', '✅'];
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   id, from, name, initials, time, text, status, reactions, onReact,
 }) => {
-  const isSelf = from !== 'customer';
+  const isSelf = from === 'agent';
   const isAI = from === 'ai';
+  const isSystem = from === 'system';
   const [showReactionPicker, setShowReactionPicker] = React.useState(false);
 
   const avatarGradient =
@@ -33,9 +34,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const bubbleClass = isAI
     ? 'bg-gradient-to-br from-slate-900 to-indigo-950/80 border border-indigo-500/30 shadow-lg shadow-indigo-500/5 text-slate-100'
-    : isSelf
-      ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-700/20'
-      : 'bg-slate-800/80 text-slate-100 border border-border';
+    : isSystem
+      ? 'bg-slate-900/50 border border-border text-slate-400 font-mono text-center text-[10px]'
+      : isSelf
+        ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-700/20'
+        : 'bg-slate-800/80 text-slate-100 border border-border';
 
   return (
     <div className={`group flex gap-3 animate-slide-up ${isSelf ? 'flex-row-reverse' : ''}`}>

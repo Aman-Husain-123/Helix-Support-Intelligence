@@ -1,4 +1,5 @@
 import React, { useRef, useState, useLayoutEffect } from 'react';
+import { useTickets } from '../../context/TicketContext';
 
 interface AiMessage {
   id: number;
@@ -8,15 +9,13 @@ interface AiMessage {
 }
 
 interface AssistantTabProps {
-  conversationId: number;
+  conversationId: string;
 }
 
-const DRAFT_REPLY_BY_CONV: Record<number, string> = {
-  1: "Hi Jordan, your latest invoice is higher because your workspace was upgraded from the Standard plan to the Growth plan on March 1st, which added prorated charges for the remaining billing period. I'd be happy to send you a detailed cost breakdown!",
-  2: "Hi, I'm investigating the API timeout issue. Could you confirm which endpoint is failing and share the exact error message or HTTP status code you're seeing?",
-  3: "Hi Sarah, I can help you reset your 2FA. For security, I'll need to verify your identity first. Could you confirm the email address on your account and the last 4 digits of the phone number you registered?",
-  4: "Hi, I've flagged your enterprise request as urgent and looped in our contracts team. You should hear from them within the next 30 minutes.",
-  5: "That's great to hear! The engineering team pushed a fix for the export pagination bug at 07:20 AM today. Let us know if you run into anything else!",
+const DRAFT_REPLY_BY_CONV: Record<string, string> = {
+  'TCK-4821': "Hi Jordan, your latest invoice is higher because your workspace was upgraded from the Standard plan to the Growth plan on March 1st, which added prorated charges for the remaining billing period. I'd be happy to send you a detailed cost breakdown!",
+  'TCK-4790': "Hi, I'm investigating the API timeout issue. Could you confirm which endpoint is failing and share the exact error message or HTTP status code you're seeing?",
+  'TCK-4785': "Hi Sarah, I can help you reset your 2FA. For security, I'll need to verify your identity first. Could you confirm the email address on your account and the last 4 digits of the phone number you registered?",
 };
 
 const QUICK_PROMPTS = [
@@ -28,26 +27,19 @@ const QUICK_PROMPTS = [
   'Generate CRM note',
 ];
 
-const CITATIONS_BY_CONV: Record<number, { title: string; path: string }[]> = {
-  1: [
+const CITATIONS_BY_CONV: Record<string, { title: string; path: string }[]> = {
+  'TCK-4821': [
     { title: 'Pricing · Plan changes & proration', path: 'Docs / billing/plan-changes.md' },
     { title: 'SLA for billing tickets', path: 'Runbooks / billing/sla.md' },
     { title: 'Refund policy', path: 'Docs / billing/refunds.md' },
   ],
-  2: [
+  'TCK-4790': [
     { title: 'API rate limits & timeouts', path: 'Docs / api/limits.md' },
     { title: 'Integration troubleshooting guide', path: 'Runbooks / api/troubleshoot.md' },
   ],
-  3: [
+  'TCK-4785': [
     { title: '2FA reset process', path: 'Runbooks / security/2fa-reset.md' },
     { title: 'Account verification steps', path: 'Docs / accounts/verification.md' },
-  ],
-  4: [
-    { title: 'Enterprise contract process', path: 'Docs / sales/enterprise.md' },
-    { title: 'SLA for enterprise tickets', path: 'Runbooks / enterprise/sla.md' },
-  ],
-  5: [
-    { title: 'Export feature documentation', path: 'Docs / features/export.md' },
   ],
 };
 
@@ -58,6 +50,9 @@ const AI_RESPONSES: string[] = [
 ];
 
 export const AssistantTab: React.FC<AssistantTabProps> = ({ conversationId }) => {
+  const { tickets } = useTickets();
+  const ticket = tickets.find(t => t.id === conversationId);
+
   const [chatMessages, setChatMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -65,8 +60,8 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({ conversationId }) =>
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const draft = DRAFT_REPLY_BY_CONV[conversationId] ?? '';
-  const citations = CITATIONS_BY_CONV[conversationId] ?? [];
+  const draft = DRAFT_REPLY_BY_CONV[conversationId] ?? "Looking into it now...";
+  const citations = CITATIONS_BY_CONV[conversationId] ?? [{ title: 'System Documentation', path: 'Docs/general.md' }];
 
   useLayoutEffect(() => {
     const ta = textareaRef.current;
@@ -132,6 +127,10 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({ conversationId }) =>
             <span className="text-[11px] font-semibold text-indigo-300 uppercase tracking-widest">AI Draft Reply</span>
           </div>
           <span className="text-[10px] text-slate-500 bg-slate-900/50 px-1.5 py-0.5 rounded font-mono">GPT-4o · RAG</span>
+        </div>
+
+        <div className="flex gap-2 mb-2 p-3 bg-indigo-900/10 text-[12px] text-slate-300">
+          <span className="font-semibold text-indigo-400">Context Summary: </span>{ticket?.aiSummary || 'Context loading...'}
         </div>
 
         <p className="px-3 py-2.5 text-[13px] leading-relaxed text-slate-100">{draft}</p>
@@ -203,14 +202,14 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({ conversationId }) =>
             {chatMessages.map((m) => (
               <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${m.role === 'assistant'
-                    ? 'bg-gradient-to-br from-indigo-500 to-cyan-400 text-white'
-                    : 'bg-slate-700 text-slate-200'
+                  ? 'bg-gradient-to-br from-indigo-500 to-cyan-400 text-white'
+                  : 'bg-slate-700 text-slate-200'
                   }`}>
                   {m.role === 'assistant' ? '✦' : 'A'}
                 </div>
                 <div className={`max-w-[80%] rounded-xl px-2.5 py-1.5 text-[12px] leading-relaxed ${m.role === 'assistant'
-                    ? 'bg-indigo-950/50 border border-indigo-500/20 text-slate-100 rounded-tl-sm'
-                    : 'bg-slate-800 text-slate-200 rounded-tr-sm'
+                  ? 'bg-indigo-950/50 border border-indigo-500/20 text-slate-100 rounded-tl-sm'
+                  : 'bg-slate-800 text-slate-200 rounded-tr-sm'
                   }`}>
                   {m.text}
                 </div>
@@ -253,8 +252,8 @@ export const AssistantTab: React.FC<AssistantTabProps> = ({ conversationId }) =>
             onClick={handleAsk}
             disabled={!input.trim() || isThinking}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold text-white transition ${input.trim() && !isThinking
-                ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 shadow-md shadow-indigo-500/20'
-                : 'bg-slate-700 opacity-50 cursor-not-allowed'
+              ? 'bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-400 hover:to-cyan-400 shadow-md shadow-indigo-500/20'
+              : 'bg-slate-700 opacity-50 cursor-not-allowed'
               }`}
           >
             {isThinking ? 'Thinking…' : 'Ask AI'}

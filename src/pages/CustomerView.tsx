@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/AuthContext';
 import { useChatWithRAG } from '../hooks/useChatWithRAG';
+import { useTickets, type TicketPriority } from '../context/TicketContext';
 
 // ── Customer View ────────────────────────────────────────────────────────────
 // Permissions: chat with AI, create/view tickets, browse help center
@@ -25,18 +26,24 @@ export const CustomerView: React.FC = () => {
     const { messages, isTyping, wsStatus, escalated, pipelineState, sendMessage, clearHistory, endRef } = useChatWithRAG(user?.id || 'guest');
 
     // Tickets state
+    const { tickets, createTicket } = useTickets();
+    const myTickets = tickets.filter(t => t.customerName === user?.name);
+
     const [ticketSubject, setTicketSubject] = useState('');
     const [ticketBody, setTicketBody] = useState('');
+    const [ticketPriority, setTicketPriority] = useState<TicketPriority>('low');
     const [ticketCreated, setTicketCreated] = useState(false);
 
     // Help Center state
     const [helpSearch, setHelpSearch] = useState('');
 
-    const MY_TICKETS = [
-        { id: 'TCK-4821', subject: 'Invoice higher than expected', status: 'open', updated: '2m ago', priority: 'high' },
-        { id: 'TCK-4785', subject: '2FA reset request', status: 'pending', updated: '30m ago', priority: 'low' },
-        { id: 'TCK-4710', subject: 'Export missing rows', status: 'resolved', updated: '2d ago', priority: 'medium' },
-    ];
+    const handleSubmitTicket = () => {
+        if (!ticketSubject.trim() || !ticketBody.trim()) return;
+        createTicket(ticketSubject, ticketBody, ticketPriority, user?.name || 'Guest');
+        setTicketCreated(true);
+        setTicketSubject('');
+        setTicketBody('');
+    };
 
     const handleSend = () => {
         if (!input.trim() || escalated) return;
@@ -144,8 +151,8 @@ export const CustomerView: React.FC = () => {
                                             </div>
                                             <div className="flex flex-col gap-1 max-w-xl">
                                                 <div className={`rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed shadow-sm ${m.role === 'ai'
-                                                        ? 'bg-slate-800/80 border border-slate-700 text-slate-100 rounded-tl-sm'
-                                                        : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
+                                                    ? 'bg-slate-800/80 border border-slate-700 text-slate-100 rounded-tl-sm'
+                                                    : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
                                                     }`}>
                                                     {m.text}
                                                 </div>
@@ -222,15 +229,25 @@ export const CustomerView: React.FC = () => {
                             {!ticketCreated ? (
                                 <div className="mb-5 rounded-xl border border-indigo-500/30 bg-indigo-950/30 p-4 animate-fade-in">
                                     <p className="mb-3 text-[12px] font-semibold text-indigo-300">Create new ticket</p>
-                                    <input value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)}
-                                        placeholder="Subject"
-                                        className="mb-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-500/60 transition" />
+                                    <div className="flex gap-2 mb-2">
+                                        <input value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)}
+                                            placeholder="Subject"
+                                            className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-500/60 transition" />
+                                        <select value={ticketPriority} onChange={(e) => setTicketPriority(e.target.value as TicketPriority)}
+                                            className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-slate-200 outline-none focus:border-indigo-500/60">
+                                            <option value="low">Low</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="high">High</option>
+                                            <option value="urgent">Urgent</option>
+                                        </select>
+                                    </div>
                                     <textarea value={ticketBody} onChange={(e) => setTicketBody(e.target.value)}
                                         rows={3} placeholder="Describe your issue…"
                                         className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-500/60 transition" />
                                     <div className="mt-2 flex gap-2">
-                                        <button onClick={() => setTicketCreated(true)}
-                                            className="rounded-lg bg-indigo-500 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-400 transition">
+                                        <button onClick={handleSubmitTicket}
+                                            disabled={!ticketSubject.trim() || !ticketBody.trim()}
+                                            className="rounded-lg bg-indigo-500 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-400 transition disabled:opacity-50">
                                             Submit
                                         </button>
                                         <button onClick={() => setTicketCreated(true)} className="text-[11px] text-slate-500 hover:text-slate-300 transition px-2">Cancel</button>
@@ -239,7 +256,7 @@ export const CustomerView: React.FC = () => {
                             ) : null}
 
                             <div className="space-y-2">
-                                {MY_TICKETS.map((t) => (
+                                {myTickets.map((t) => (
                                     <div key={t.id} className="flex items-center gap-4 rounded-xl border border-border bg-surface/50 px-4 py-3 hover:border-indigo-500/30 transition cursor-pointer">
                                         <div className="flex flex-col flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
@@ -247,13 +264,16 @@ export const CustomerView: React.FC = () => {
                                                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${t.status === 'open' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                                                     : t.status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                                                         : 'bg-slate-700/40 border-slate-600/20 text-slate-400'}`}>{t.status}</span>
-                                                <span className={`h-1.5 w-1.5 rounded-full ${t.priority === 'high' ? 'bg-rose-500' : t.priority === 'medium' ? 'bg-amber-400' : 'bg-slate-500'}`} />
+                                                <span className={`h-1.5 w-1.5 rounded-full ${t.priority === 'urgent' ? 'bg-rose-600 animate-pulse' : t.priority === 'high' ? 'bg-rose-500' : t.priority === 'medium' ? 'bg-amber-400' : 'bg-slate-500'}`} />
                                             </div>
                                             <p className="mt-0.5 text-[13px] font-medium text-slate-200 truncate">{t.subject}</p>
                                         </div>
-                                        <span className="text-[11px] text-slate-500 flex-shrink-0">{t.updated}</span>
+                                        <span className="text-[11px] text-slate-500 flex-shrink-0">{t.updatedAt}</span>
                                     </div>
                                 ))}
+                                {myTickets.length === 0 && (
+                                    <p className="text-[12px] text-slate-500 text-center py-4">No active tickets.</p>
+                                )}
                             </div>
                         </div>
                     )}

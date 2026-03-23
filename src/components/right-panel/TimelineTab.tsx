@@ -1,64 +1,18 @@
 import React from 'react';
+import { useTickets } from '../../context/TicketContext';
 
 interface TimelineTabProps {
-    conversationId: number;
+    conversationId: string;
 }
 
-interface TimelineEvent {
-    id: number;
-    type: 'message' | 'status' | 'ai' | 'ticket' | 'system';
-    title: string;
-    desc?: string;
-    time: string;
-    actor?: string;
-}
-
-const EVENTS_BY_CONV: Record<number, TimelineEvent[]> = {
-    1: [
-        { id: 1, type: 'system', title: 'Conversation started', desc: 'Via web chat widget', time: '10:02 AM' },
-        { id: 2, type: 'ticket', title: 'Ticket TCK-4821 created', desc: 'Auto-classified: billing › plan-change', time: '10:02 AM' },
-        { id: 3, type: 'ai', title: 'Helix AI analyzed conversation', desc: 'Context: plan upgrade Mar 1 · confidence 94%', time: '10:03 AM' },
-        { id: 4, type: 'message', title: 'Agent replied', desc: 'Alex Rivera joined the conversation', time: '10:03 AM', actor: 'AR' },
-        { id: 5, type: 'ai', title: 'Draft reply generated', desc: 'RAG sources: billing/plan-changes.md, billing/sla.md', time: '10:03 AM' },
-        { id: 6, type: 'message', title: 'Customer replied', desc: 'Asking about refund for unused days', time: '10:05 AM' },
-        { id: 7, type: 'status', title: 'SLA warning triggered', desc: 'First response SLA: 4 min remaining', time: '10:07 AM' },
-    ],
-    2: [
-        { id: 1, type: 'system', title: 'Email received', time: '09:30 AM' },
-        { id: 2, type: 'ticket', title: 'Ticket TCK-4790 created', desc: 'Category: API · L2 escalation pending', time: '09:30 AM' },
-        { id: 3, type: 'ai', title: 'AI flagged as technical issue', desc: 'Routed to Priya Nair (L2 Engineer)', time: '09:31 AM' },
-        { id: 4, type: 'message', title: 'Agent acknowledged', time: '09:32 AM', actor: 'PN' },
-    ],
-    3: [
-        { id: 1, type: 'system', title: 'Conversation started', desc: 'Web chat', time: '09:10 AM' },
-        { id: 2, type: 'ticket', title: 'Ticket TCK-4785 created', time: '09:10 AM' },
-        { id: 3, type: 'ai', title: 'AI flagged: identity verification required', desc: '2FA reset security flow initiated', time: '09:11 AM' },
-    ],
-    4: [
-        { id: 1, type: 'system', title: 'Slack message received', time: '08:45 AM' },
-        { id: 2, type: 'ticket', title: 'Ticket TCK-4770 created', desc: 'Priority: HIGH · SLA: 30 min', time: '08:45 AM' },
-        { id: 3, type: 'status', title: 'Escalated to Enterprise Team', actor: 'LS', time: '08:47 AM' },
-        { id: 4, type: 'message', title: 'Agent replied', time: '08:47 AM', actor: 'LS' },
-    ],
-    5: [
-        { id: 1, type: 'system', title: 'Email received', time: '07:30 AM' },
-        { id: 2, type: 'ticket', title: 'Ticket TCK-4751 created', time: '07:30 AM' },
-        { id: 3, type: 'ai', title: 'AI identified: known export bug', desc: 'Linked to engineering issue #ENG-2291', time: '07:31 AM' },
-        { id: 4, type: 'message', title: 'Alex replied with fix info', time: '07:35 AM', actor: 'AR' },
-        { id: 5, type: 'status', title: 'Ticket resolved', desc: 'CSAT survey sent', time: '07:42 AM' },
-    ],
-};
-
-const eventIcon = (type: TimelineEvent['type']) => {
+const eventIcon = (type: string) => {
     switch (type) {
+        case 'agent':
+        case 'customer':
         case 'message':
             return { icon: '💬', bg: 'bg-indigo-500/20', border: 'border-indigo-500/30', text: 'text-indigo-400' };
         case 'ai':
             return { icon: '✦', bg: 'bg-cyan-500/15', border: 'border-cyan-500/25', text: 'text-cyan-400' };
-        case 'ticket':
-            return { icon: '🎟️', bg: 'bg-violet-500/15', border: 'border-violet-500/25', text: 'text-violet-400' };
-        case 'status':
-            return { icon: '⚡', bg: 'bg-amber-500/15', border: 'border-amber-500/25', text: 'text-amber-400' };
         case 'system':
         default:
             return { icon: '⚙️', bg: 'bg-slate-700/40', border: 'border-slate-600/20', text: 'text-slate-400' };
@@ -66,7 +20,27 @@ const eventIcon = (type: TimelineEvent['type']) => {
 };
 
 export const TimelineTab: React.FC<TimelineTabProps> = ({ conversationId }) => {
-    const events = EVENTS_BY_CONV[conversationId] ?? [];
+    const { tickets } = useTickets();
+    const ticket = tickets.find(t => t.id === conversationId);
+
+    if (!ticket) {
+        return (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <p className="text-[12px] text-slate-400">No ticket selected.</p>
+            </div>
+        );
+    }
+
+    const events = ticket.messages.map(m => ({
+        id: m.id,
+        type: m.role,
+        title: m.role === 'customer' ? 'Customer replied'
+            : m.role === 'agent' ? 'Agent replied'
+                : m.role === 'ai' ? 'AI action' : 'System event',
+        desc: m.text,
+        time: m.time,
+        actor: m.role === 'customer' || m.role === 'agent' ? m.senderName : undefined
+    }));
 
     return (
         <div className="animate-fade-in">
@@ -84,11 +58,7 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({ conversationId }) => {
                         <div key={event.id} className={`relative flex gap-3 ${!isLast ? 'pb-4' : ''}`}>
                             {/* Icon node */}
                             <div className={`relative z-10 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border ${bg} ${border} text-[12px]`}>
-                                {event.actor ? (
-                                    <span className={`text-[9px] font-bold ${text}`}>{event.actor}</span>
-                                ) : (
-                                    <span>{icon}</span>
-                                )}
+                                {icon}
                             </div>
 
                             {/* Content */}
@@ -98,7 +68,10 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({ conversationId }) => {
                                     <span className="flex-shrink-0 text-[10px] text-slate-500 font-mono">{event.time}</span>
                                 </div>
                                 {event.desc && (
-                                    <p className="mt-0.5 text-[11px] text-slate-500 leading-relaxed">{event.desc}</p>
+                                    <p className="mt-0.5 text-[11px] text-slate-500 leading-relaxed truncate">{event.desc}</p>
+                                )}
+                                {event.actor && (
+                                    <span className={`text-[9px] font-bold ${text}`}>by {event.actor}</span>
                                 )}
                             </div>
                         </div>

@@ -4,7 +4,7 @@ import { AssistantTab } from './AssistantTab';
 import { TimelineTab } from './TimelineTab';
 
 interface RightPanelProps {
-  conversationId: number;
+  conversationId: string;
 }
 
 const TABS = [
@@ -57,8 +57,8 @@ export const RightPanel: React.FC<RightPanelProps> = ({ conversationId }) => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-t-lg px-2 py-2 text-[11px] font-medium transition ${isActive
-                    ? 'bg-surface text-slate-100 border border-border border-b-surface -mb-px z-10'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
+                  ? 'bg-surface text-slate-100 border border-border border-b-surface -mb-px z-10'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
                   }`}
               >
                 <span className={isActive ? (tab.id === 'assistant' ? 'text-indigo-300' : 'text-slate-300') : ''}>

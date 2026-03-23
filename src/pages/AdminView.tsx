@@ -4,15 +4,28 @@ import { useUser } from '../context/AuthContext';
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
 // Permissions: manage agents, configure AI, upload knowledge base, view analytics
 
-type AdminTab = 'agents' | 'ai' | 'knowledge' | 'analytics';
+type AdminTab = 'agents' | 'ai' | 'knowledge' | 'analytics' | 'settings';
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
-const AGENTS = [
-    { id: 'u1', name: 'Alex Rivera', role: 'agent', email: 'agent@helix.io', status: 'online', tickets: 124, csat: 4.9, since: 'Jan 2024' },
-    { id: 'u4', name: 'Priya Nair', role: 'agent', email: 'priya@helix.io', status: 'online', tickets: 98, csat: 4.8, since: 'Mar 2024' },
-    { id: 'u5', name: 'Sam Cho', role: 'agent', email: 'sam@helix.io', status: 'busy', tickets: 76, csat: 4.6, since: 'Jun 2024' },
-    { id: 'u6', name: 'Leila Santos', role: 'agent', email: 'leila@helix.io', status: 'away', tickets: 54, csat: 4.7, since: 'Aug 2024' },
+export interface AgentData {
+    id: string;
+    name: string;
+    role: string;
+    email: string;
+    status: 'available' | 'busy' | 'offline';
+    tickets: number;
+    csat: number;
+    since: string;
+    skills: string[];
+    maxConcurrent: number;
+}
+
+const INITIAL_AGENTS: AgentData[] = [
+    { id: 'u1', name: 'Alex Rivera', role: 'agent', email: 'agent@helix.io', status: 'available', tickets: 2, csat: 4.9, since: 'Jan 2024', skills: ['billing', 'general'], maxConcurrent: 5 },
+    { id: 'u4', name: 'Priya Nair', role: 'agent', email: 'priya@helix.io', status: 'available', tickets: 1, csat: 4.8, since: 'Mar 2024', skills: ['technical', 'api'], maxConcurrent: 4 },
+    { id: 'u5', name: 'Sam Cho', role: 'agent', email: 'sam@helix.io', status: 'busy', tickets: 5, csat: 4.6, since: 'Jun 2024', skills: ['security', 'general'], maxConcurrent: 5 },
+    { id: 'u6', name: 'Leila Santos', role: 'agent', email: 'leila@helix.io', status: 'offline', tickets: 0, csat: 4.7, since: 'Aug 2024', skills: ['enterprise', 'sales'], maxConcurrent: 3 },
 ];
 
 export type DocStatus = 'pending' | 'processing' | 'ready' | 'failed';
@@ -46,7 +59,7 @@ const ANALYTICS_METRICS = [
     { label: 'Open Tickets', val: '47', delta: '+3', up: false },
 ];
 
-const STATUS_COLOR: Record<string, string> = { online: 'bg-emerald-500', busy: 'bg-rose-500', away: 'bg-amber-400', offline: 'bg-slate-600' };
+const STATUS_COLOR: Record<string, string> = { available: 'bg-emerald-500', busy: 'bg-rose-500', offline: 'bg-slate-600' };
 
 const CHART_BARS = [42, 58, 35, 72, 88, 65, 51, 90, 78, 63, 84, 70, 55, 91];
 
@@ -55,12 +68,19 @@ const CHART_BARS = [42, 58, 35, 72, 88, 65, 51, 90, 78, 63, 84, 70, 55, 91];
 export const AdminView: React.FC = () => {
     const { user, logout } = useUser();
     const [tab, setTab] = useState<AdminTab>('analytics');
+
+    // AI Config State (In-Memory MVP)
     const [aiModel, setAiModel] = useState('gpt-4o');
     const [temperature, setTemperature] = useState(0.4);
     const [ragEnabled, setRagEnabled] = useState(true);
     const [maxTokens, setMaxTokens] = useState(1024);
     const [systemPrompt, setSystemPrompt] = useState('You are Helix AI, a helpful customer support assistant. Always be empathetic, concise, and accurate. When unsure, say so and escalate.');
     const [configSaved, setConfigSaved] = useState(false);
+
+    // Agent Management State
+    const [agents, setAgents] = useState<AgentData[]>([...INITIAL_AGENTS]);
+    const [agentFilter, setAgentFilter] = useState('all');
+    const [editingAgent, setEditingAgent] = useState<AgentData | null>(null);
 
     // Knowledge Base State
     const [docs, setDocs] = useState<DocItem[]>([...INITIAL_DOCS]);
@@ -121,11 +141,18 @@ export const AdminView: React.FC = () => {
         }
     };
 
+    const saveAgent = () => {
+        if (!editingAgent) return;
+        setAgents(prev => prev.map(a => a.id === editingAgent.id ? editingAgent : a));
+        setEditingAgent(null);
+    };
+
     const tabs: { id: AdminTab; label: string; icon: string }[] = [
         { id: 'analytics', label: 'Analytics', icon: '📊' },
         { id: 'agents', label: 'Agents', icon: '👥' },
         { id: 'ai', label: 'AI Config', icon: '🤖' },
         { id: 'knowledge', label: 'Knowledge Base', icon: '📚' },
+        { id: 'settings', label: 'Settings', icon: '⚙️' },
     ];
 
     return (
@@ -217,7 +244,7 @@ export const AdminView: React.FC = () => {
                             <div className="rounded-xl border border-border bg-surface/50 p-5">
                                 <p className="mb-3 text-[13px] font-semibold text-slate-200">Top agents by CSAT</p>
                                 <div className="space-y-2.5">
-                                    {[...AGENTS].sort((a, b) => b.csat - a.csat).map((a, i) => (
+                                    {[...agents].sort((a, b) => b.csat - a.csat).map((a, i) => (
                                         <div key={a.id} className="flex items-center gap-3">
                                             <span className="w-5 text-[11px] font-mono text-slate-500">#{i + 1}</span>
                                             <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 flex items-center justify-center text-[10px] font-bold text-white">
@@ -243,11 +270,23 @@ export const AdminView: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h2 className="text-lg font-bold text-slate-100">Agent Management</h2>
-                                    <p className="text-[12px] text-slate-500">{AGENTS.length} agents · {user?.tenantId}</p>
+                                    <p className="text-[12px] text-slate-500">{agents.length} agents · {user?.tenantId}</p>
                                 </div>
-                                <button className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-[12px] font-medium text-slate-300 hover:border-rose-500/40 hover:text-rose-300 transition">
-                                    + Invite agent
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={agentFilter}
+                                        onChange={e => setAgentFilter(e.target.value)}
+                                        className="rounded-lg border border-border bg-surface px-3 py-1.5 text-[12px] text-slate-200 outline-none focus:border-indigo-500/60"
+                                    >
+                                        <option value="all">All Statuses</option>
+                                        <option value="available">Available</option>
+                                        <option value="busy">Busy</option>
+                                        <option value="offline">Offline</option>
+                                    </select>
+                                    <button className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2 text-[12px] font-medium text-slate-300 hover:border-rose-500/40 hover:text-rose-300 transition">
+                                        + Invite agent
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="overflow-hidden rounded-xl border border-border">
@@ -263,7 +302,7 @@ export const AdminView: React.FC = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border">
-                                        {AGENTS.map((a) => (
+                                        {agents.filter(a => agentFilter === 'all' || a.status === agentFilter).map((a) => (
                                             <tr key={a.id} className="hover:bg-surfaceHover transition">
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2.5">
@@ -283,7 +322,7 @@ export const AdminView: React.FC = () => {
                                                     <span className="font-mono text-[11px] text-slate-400">{a.email}</span>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <span className={`capitalize text-[11px] font-medium ${a.status === 'online' ? 'text-emerald-400' : a.status === 'busy' ? 'text-rose-400' : 'text-amber-400'
+                                                    <span className={`capitalize text-[11px] font-medium ${a.status === 'available' ? 'text-emerald-400' : a.status === 'busy' ? 'text-rose-400' : 'text-slate-400'
                                                         }`}>{a.status}</span>
                                                 </td>
                                                 <td className="px-4 py-3 text-right text-[12px] text-slate-300">{a.tickets}</td>
@@ -291,6 +330,7 @@ export const AdminView: React.FC = () => {
                                                     <span className="text-[12px] font-semibold text-emerald-400">{a.csat}</span>
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
+                                                    <button onClick={() => setEditingAgent({ ...a })} className="mr-3 text-[11px] text-indigo-400 hover:text-indigo-300 transition">Edit</button>
                                                     <button className="text-[11px] text-slate-500 hover:text-rose-400 transition">Remove</button>
                                                 </td>
                                             </tr>
@@ -318,10 +358,10 @@ export const AdminView: React.FC = () => {
                                     </div>
                                     <select value={aiModel} onChange={(e) => setAiModel(e.target.value)}
                                         className="rounded-lg border border-border bg-background px-3 py-1.5 text-[12px] text-slate-200 outline-none focus:border-indigo-500/60 transition">
-                                        <option value="gpt-4o">GPT-4o</option>
-                                        <option value="gpt-4o-mini">GPT-4o mini</option>
-                                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                                        <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                                        <option value="gpt-4o">gpt-4o</option>
+                                        <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                        <option value="gpt-4-turbo">gpt-4-turbo</option>
+                                        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
                                     </select>
                                 </div>
 
@@ -346,11 +386,11 @@ export const AdminView: React.FC = () => {
                                         </div>
                                         <span className="font-mono text-[13px] font-bold text-indigo-300">{temperature.toFixed(1)}</span>
                                     </div>
-                                    <input type="range" min="0" max="1" step="0.1" value={temperature}
+                                    <input type="range" min="0" max="2" step="0.1" value={temperature}
                                         onChange={(e) => setTemperature(parseFloat(e.target.value))}
                                         className="w-full accent-indigo-500" />
                                     <div className="mt-1 flex justify-between text-[10px] text-slate-600">
-                                        <span>0.0 — Precise</span><span>1.0 — Creative</span>
+                                        <span>0.0 — Precise</span><span>2.0 — Creative</span>
                                     </div>
                                 </div>
 
@@ -360,10 +400,9 @@ export const AdminView: React.FC = () => {
                                         <p className="text-[12px] font-semibold text-slate-200">Max Response Tokens</p>
                                         <p className="text-[11px] text-slate-500">Maximum length of AI reply</p>
                                     </div>
-                                    <select value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                                        className="rounded-lg border border-border bg-background px-3 py-1.5 text-[12px] text-slate-200 outline-none focus:border-indigo-500/60 transition">
-                                        {[512, 1024, 2048, 4096].map((v) => <option key={v} value={v}>{v}</option>)}
-                                    </select>
+                                    <input type="number" min="256" max="8192" value={maxTokens} onChange={(e) => setMaxTokens(parseInt(e.target.value) || 256)}
+                                        className="rounded-lg border border-border bg-background px-3 py-1.5 text-[12px] text-slate-200 outline-none focus:border-indigo-500/60 transition w-24 text-right"
+                                    />
                                 </div>
 
                                 {/* System prompt */}
@@ -529,8 +568,113 @@ export const AdminView: React.FC = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* ── Settings ── */}
+                    {tab === 'settings' && (
+                        <div className="animate-fade-in max-w-2xl space-y-5">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-100">Global Settings</h2>
+                                <p className="text-[12px] text-slate-500">System configurations and security · {user?.tenantId}</p>
+                            </div>
+
+                            {/* API Keys */}
+                            <div className="rounded-xl border border-border bg-surface/50 p-5">
+                                <h3 className="mb-4 text-[13px] font-semibold text-slate-200">API Credentials</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="mb-1.5 block text-[11px] font-semibold text-slate-400">OpenAI API Key</label>
+                                        <input type="password" value="sk-xyz123supersecretkeythatishidden" readOnly className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px] text-slate-500 outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1.5 block text-[11px] font-semibold text-slate-400">EURI / Vector DB Endpoint</label>
+                                        <input type="text" value="https://api.euri.com/v1/vector" readOnly className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px] text-slate-500 outline-none" />
+                                    </div>
+                                    <button className="rounded-lg bg-indigo-500/15 border border-indigo-500/30 px-4 py-1.5 text-[11px] font-medium text-indigo-300 hover:bg-indigo-500/25 transition">
+                                        Rotate Keys
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Security Status */}
+                            <div className="rounded-xl border border-border bg-surface/50 p-5">
+                                <h3 className="mb-4 text-[13px] font-semibold text-slate-200">Security & Compliance</h3>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.965 11.965 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                            <span className="text-[12px] font-medium text-slate-200">End-to-End Encryption</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Active</span>
+                                    </div>
+                                    <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                            <span className="text-[12px] font-medium text-slate-200">SOC2 Compliance Mode</span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Active</span>
+                                    </div>
+                                    <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+                                        <div className="flex items-center gap-2">
+                                            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            <span className="text-[12px] font-medium text-slate-400">Data Export</span>
+                                        </div>
+                                        <button className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wide">Download Logs</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
+
+            {/* Agent Edit Modal */}
+            {editingAgent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="w-full max-w-sm rounded-xl border border-border bg-surface shadow-2xl overflow-hidden text-slate-200">
+                        <div className="flex justify-between items-center bg-surfaceHover px-4 py-3 border-b border-border">
+                            <h3 className="text-[14px] font-bold text-slate-100">Edit Agent: {editingAgent.name}</h3>
+                            <button onClick={() => setEditingAgent(null)} className="text-slate-500 hover:text-slate-300 text-lg">&times;</button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold text-slate-400 uppercase">Status</label>
+                                <select
+                                    value={editingAgent.status}
+                                    onChange={e => setEditingAgent({ ...editingAgent, status: e.target.value as any })}
+                                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px] outline-none focus:border-indigo-500"
+                                >
+                                    <option value="available">Available</option>
+                                    <option value="busy">Busy</option>
+                                    <option value="offline">Offline</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold text-slate-400 uppercase">Max Concurrent Tickets</label>
+                                <input
+                                    type="number" min="1" max="20"
+                                    value={editingAgent.maxConcurrent}
+                                    onChange={e => setEditingAgent({ ...editingAgent, maxConcurrent: parseInt(e.target.value) || 1 })}
+                                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px] outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1.5 block text-[11px] font-semibold text-slate-400 uppercase">Skills (comma separated)</label>
+                                <input
+                                    type="text"
+                                    value={editingAgent.skills.join(', ')}
+                                    onChange={e => setEditingAgent({ ...editingAgent, skills: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                                    placeholder="e.g. billing, technical"
+                                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[12px] outline-none focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex gap-2 p-4 border-t border-border bg-surfaceHover">
+                            <button onClick={() => setEditingAgent(null)} className="flex-1 rounded-lg border border-border py-2 text-[12px] font-medium text-slate-300 hover:bg-slate-800 transition">Cancel</button>
+                            <button onClick={saveAgent} className="flex-1 rounded-lg bg-indigo-500 py-2 text-[12px] font-medium text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-400 transition">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

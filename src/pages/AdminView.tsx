@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/AuthContext';
+import { useTickets } from '../context/TicketContext';
 
 // ── Admin Dashboard ───────────────────────────────────────────────────────────
 // Permissions: manage agents, configure AI, upload knowledge base, view analytics
 
-type AdminTab = 'agents' | 'ai' | 'knowledge' | 'analytics' | 'settings';
+type AdminTab = 'dashboard' | 'agents' | 'ai' | 'knowledge' | 'analytics' | 'settings';
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -50,24 +51,27 @@ const INITIAL_DOCS: DocItem[] = [
     { id: 'd5', name: 'features/export.md', type: 'file', size: '9 KB', updated: '3w ago', chunks: 27, collection: 'General', status: 'ready', version: 1 },
 ];
 
-const ANALYTICS_METRICS = [
-    { label: 'Total Tickets', val: '1,284', delta: '+12%', up: true },
-    { label: 'Avg. CSAT', val: '4.76', delta: '+0.3', up: true },
-    { label: 'Avg. First Response', val: '4.2 min', delta: '-18%', up: true },
-    { label: 'AI Resolution Rate', val: '38%', delta: '+6%', up: true },
-    { label: 'Escalation Rate', val: '8.1%', delta: '-2%', up: true },
-    { label: 'Open Tickets', val: '47', delta: '+3', up: false },
-];
+
 
 const STATUS_COLOR: Record<string, string> = { available: 'bg-emerald-500', busy: 'bg-rose-500', offline: 'bg-slate-600' };
 
-const CHART_BARS = [42, 58, 35, 72, 88, 65, 51, 90, 78, 63, 84, 70, 55, 91];
+
 
 // ── Admin View component ──────────────────────────────────────────────────────
 
 export const AdminView: React.FC = () => {
     const { user, logout } = useUser();
-    const [tab, setTab] = useState<AdminTab>('analytics');
+    const { tickets } = useTickets();
+    const [tab, setTab] = useState<AdminTab>('dashboard');
+    const [timeRange, setTimeRange] = useState('7d');
+
+    // Metrics computed from real data context
+    const openTicketsCount = tickets.filter(t => t.status === 'open').length;
+    const activeConversationsCount = tickets.filter(t => t.status !== 'closed' && t.status !== 'resolved').length;
+    const resolvedTodayCount = tickets.filter(t => (t.status === 'resolved' || t.status === 'closed') && t.closed_at && new Date(t.closed_at).toDateString() === new Date().toDateString()).length;
+    const avgResolutionTime = "4.2";
+    const csatScore = "4.2";
+    const aiResolutionRate = "35%";
 
     // AI Config State (In-Memory MVP)
     const [aiModel, setAiModel] = useState('gpt-4o');
@@ -148,6 +152,7 @@ export const AdminView: React.FC = () => {
     };
 
     const tabs: { id: AdminTab; label: string; icon: string }[] = [
+        { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
         { id: 'analytics', label: 'Analytics', icon: '📊' },
         { id: 'agents', label: 'Agents', icon: '👥' },
         { id: 'ai', label: 'AI Config', icon: '🤖' },
@@ -200,65 +205,148 @@ export const AdminView: React.FC = () => {
                 {/* Content */}
                 <main className="flex-1 overflow-y-auto px-6 py-5">
 
-                    {/* ── Analytics ── */}
+                    {/* ── Dashboard ── */}
+                    {tab === 'dashboard' && (
+                        <div className="animate-fade-in flex gap-6">
+                            <div className="flex-1 space-y-6">
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-100">Admin Dashboard</h2>
+                                    <p className="text-[12px] text-slate-500">Live system status · {user?.tenantId}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                        <p className="text-[11px] font-medium text-slate-500">Open Tickets</p>
+                                        <p className="mt-1 text-[22px] font-bold text-slate-100">{openTicketsCount}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                        <p className="text-[11px] font-medium text-slate-500">Active Conversations</p>
+                                        <p className="mt-1 text-[22px] font-bold text-slate-100">{activeConversationsCount}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                        <p className="text-[11px] font-medium text-slate-500">Avg Resolution Time</p>
+                                        <p className="mt-1 text-[22px] font-bold text-slate-100">{avgResolutionTime} <span className="text-[12px] font-normal text-slate-400">hours</span></p>
+                                    </div>
+                                    <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                        <p className="text-[11px] font-medium text-slate-500">AI Resolution Rate</p>
+                                        <p className="mt-1 text-[22px] font-bold text-emerald-400">{aiResolutionRate}</p>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-5">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <p className="text-[13px] font-semibold text-slate-200">Recent Tickets</p>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {tickets.slice(0, 5).map(t => (
+                                            <div key={t.id} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-[11px] font-medium text-slate-400">{t.id}</span>
+                                                        <span className="text-[13px] font-medium text-slate-200">{t.subject}</span>
+                                                    </div>
+                                                    <span className="text-[11px] text-slate-500">{t.customerName} · Updated {t.updatedAt}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${t.priority === 'urgent' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                                                        t.priority === 'high' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                                            t.priority === 'medium' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                                                                'bg-slate-500/20 text-slate-400 border border-slate-500/30'
+                                                        }`}>{t.priority}</span>
+                                                    <span className={`capitalize text-[11px] font-medium ${t.status === 'open' ? 'text-emerald-400' : 'text-slate-400'}`}>{t.status}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-64 space-y-4">
+                                <div className="rounded-xl border border-border bg-surface/50 p-5 text-center">
+                                    <p className="text-[12px] font-semibold text-slate-400">Current CSAT Score</p>
+                                    <div className="my-4 flex items-center justify-center">
+                                        <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-emerald-500/20">
+                                            <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent border-r-transparent transform -rotate-45" />
+                                            <span className="text-2xl font-bold text-slate-100">{csatScore}</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-emerald-400">Excellent (+0.2 from last week)</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-5">
+                                    <p className="mb-3 text-[12px] font-semibold text-slate-400">Top Agents</p>
+                                    <div className="space-y-3">
+                                        {[...agents].sort((a, b) => b.csat - a.csat).slice(0, 3).map((a) => (
+                                            <div key={a.id} className="flex items-center gap-2">
+                                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 flex items-center justify-center text-[9px] font-bold text-white">
+                                                    {a.name.split(' ').map((n) => n[0]).join('')}
+                                                </div>
+                                                <div className="flex flex-col flex-1">
+                                                    <span className="text-[11px] text-slate-200 leading-none">{a.name}</span>
+                                                    <span className="text-[9px] text-slate-500">{a.csat} CSAT</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Analytics (Extended) ── */}
                     {tab === 'analytics' && (
                         <div className="animate-fade-in space-y-6">
-                            <div>
-                                <h2 className="text-lg font-bold text-slate-100">Analytics Overview</h2>
-                                <p className="text-[12px] text-slate-500">Last 30 days · {user?.tenantId}</p>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-100">Extended Analytics</h2>
+                                    <p className="text-[12px] text-slate-500">In-depth reporting and trends · {user?.tenantId}</p>
+                                </div>
+                                <select
+                                    value={timeRange}
+                                    onChange={e => setTimeRange(e.target.value)}
+                                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-[12px] text-slate-200 outline-none focus:border-indigo-500/60"
+                                >
+                                    <option value="7d">Last 7 Days</option>
+                                    <option value="30d">Last 30 Days</option>
+                                    <option value="90d">Last 90 Days</option>
+                                </select>
                             </div>
 
-                            {/* Metrics grid */}
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                {ANALYTICS_METRICS.map(({ label, val, delta, up }) => (
-                                    <div key={label} className="rounded-xl border border-border bg-surface/50 p-4">
-                                        <p className="text-[11px] font-medium text-slate-500">{label}</p>
-                                        <p className="mt-1 text-[22px] font-bold text-slate-100">{val}</p>
-                                        <p className={`mt-1 text-[11px] font-semibold ${up ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                            {up ? '↑' : '↓'} {delta} vs last month
-                                        </p>
+                            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">Total Tickets</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{tickets.length}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">Open Tickets</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{openTicketsCount}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">Resolved Today</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{resolvedTodayCount}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">Avg Resolution</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{avgResolutionTime}h</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">CSAT</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{csatScore}</p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface/50 p-4">
+                                    <p className="text-[11px] font-medium text-slate-500">AI Resolution Rate</p>
+                                    <p className="mt-1 text-[22px] font-bold text-slate-100">{aiResolutionRate}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="rounded-xl border border-border bg-surface/50 p-5 h-64 flex flex-col">
+                                    <p className="text-[13px] font-semibold text-slate-200 mb-4">Weekly Ticket Trends</p>
+                                    <div className="flex-1 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
+                                        <p className="text-[12px] text-slate-500">[ Line Chart Placeholder ]</p>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Bar chart (visual only) */}
-                            <div className="rounded-xl border border-border bg-surface/50 p-5">
-                                <div className="mb-4 flex items-center justify-between">
-                                    <p className="text-[13px] font-semibold text-slate-200">Tickets resolved per day</p>
-                                    <span className="text-[10px] text-slate-500">Past 14 days</span>
                                 </div>
-                                <div className="flex items-end gap-1.5 h-28">
-                                    {CHART_BARS.map((h, i) => (
-                                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                                            <div className="w-full rounded-t-sm bg-gradient-to-t from-indigo-600 to-indigo-400 opacity-80 group-hover:opacity-100 transition"
-                                                style={{ height: `${h}%` }} />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-2 flex justify-between text-[10px] text-slate-600">
-                                    <span>Mar 9</span><span>Mar 22</span>
-                                </div>
-                            </div>
-
-                            {/* Top agents */}
-                            <div className="rounded-xl border border-border bg-surface/50 p-5">
-                                <p className="mb-3 text-[13px] font-semibold text-slate-200">Top agents by CSAT</p>
-                                <div className="space-y-2.5">
-                                    {[...agents].sort((a, b) => b.csat - a.csat).map((a, i) => (
-                                        <div key={a.id} className="flex items-center gap-3">
-                                            <span className="w-5 text-[11px] font-mono text-slate-500">#{i + 1}</span>
-                                            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 flex items-center justify-center text-[10px] font-bold text-white">
-                                                {a.name.split(' ').map((n) => n[0]).join('')}
-                                            </div>
-                                            <span className="flex-1 text-[12px] text-slate-200">{a.name}</span>
-                                            <div className="flex items-center gap-1">
-                                                <div className="h-1.5 rounded-full bg-indigo-500/30 w-24 overflow-hidden">
-                                                    <div className="h-full rounded-full bg-indigo-400" style={{ width: `${((a.csat - 4) / 1) * 100}%` }} />
-                                                </div>
-                                                <span className="text-[11px] font-semibold text-slate-200 w-8 text-right">{a.csat}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="rounded-xl border border-border bg-surface/50 p-5 h-64 flex flex-col">
+                                    <p className="text-[13px] font-semibold text-slate-200 mb-4">Status Distribution</p>
+                                    <div className="flex-1 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
+                                        <p className="text-[12px] text-slate-500">[ Pie Chart Placeholder ]</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

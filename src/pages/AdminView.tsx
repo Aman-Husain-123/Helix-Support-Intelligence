@@ -66,6 +66,8 @@ export const AdminView: React.FC = () => {
     const [docs, setDocs] = useState<DocItem[]>([...INITIAL_DOCS]);
     const [uploadType, setUploadType] = useState<'file' | 'url'>('file');
     const [uploadUrl, setUploadUrl] = useState('');
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [chunkSize, setChunkSize] = useState<number>(1000);
     const [chunkOverlap, setChunkOverlap] = useState<number>(200);
     const [collection, setCollection] = useState('General');
@@ -77,13 +79,17 @@ export const AdminView: React.FC = () => {
 
     const handleUpload = () => {
         if (uploadType === 'url' && !uploadUrl.trim()) return;
+        if (uploadType === 'file' && !selectedFile) {
+            alert("Please select a file to upload first.");
+            return;
+        }
 
         const newId = Date.now().toString();
         const newDoc: DocItem = {
             id: newId,
-            name: uploadType === 'file' ? 'document-' + Math.floor(Math.random() * 1000) + (Math.random() > 0.5 ? '.pdf' : '.md') : uploadUrl,
+            name: uploadType === 'file' ? selectedFile!.name : uploadUrl,
             type: uploadType,
-            size: uploadType === 'file' ? Math.floor(Math.random() * 500) + ' KB' : '-',
+            size: uploadType === 'file' ? `${(selectedFile!.size / 1024).toFixed(1)} KB` : '-',
             updated: 'Just now',
             chunks: 0,
             collection: collection,
@@ -93,6 +99,7 @@ export const AdminView: React.FC = () => {
 
         setDocs(prev => [newDoc, ...prev]);
         setUploadUrl('');
+        setSelectedFile(null);
 
         // Simulate async worker pipeline (Parse -> Chunk -> Embed EURI -> pgvector Store)
         setTimeout(() => {
@@ -404,9 +411,22 @@ export const AdminView: React.FC = () => {
                                     <div className="space-y-4">
                                         {/* File / URL Input */}
                                         {uploadType === 'file' ? (
-                                            <div className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-background/50 transition hover:border-indigo-500/40">
-                                                <svg className="mb-2 h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                                <p className="text-[12px] font-medium text-slate-300">Browse PDF, TXT, MD</p>
+                                            <div>
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    onChange={e => e.target.files && setSelectedFile(e.target.files[0])}
+                                                    className="hidden"
+                                                    accept=".pdf,.txt,.md"
+                                                />
+                                                <div
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className={`flex h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition ${selectedFile ? 'border-indigo-500 bg-indigo-500/10' : 'border-border bg-background/50 hover:border-indigo-500/40'}`}>
+                                                    <svg className={`mb-2 h-6 w-6 ${selectedFile ? 'text-indigo-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={selectedFile ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" : "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"} /></svg>
+                                                    <p className={`text-[12px] font-medium ${selectedFile ? 'text-indigo-300' : 'text-slate-300'} text-center px-4 truncate w-full`}>
+                                                        {selectedFile ? selectedFile.name : 'Browse PDF, TXT, MD'}
+                                                    </p>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div>
@@ -486,9 +506,9 @@ export const AdminView: React.FC = () => {
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold ${d.status === 'ready' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                                            : d.status === 'processing' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                                                                : d.status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                                                                    : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                                                        : d.status === 'processing' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                                                            : d.status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                                                : 'bg-slate-500/10 border-slate-500/20 text-slate-400'
                                                         }`}>
                                                         {d.status === 'processing' && <svg className="h-2 w-2 animate-spin text-amber-400" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z" /></svg>}
                                                         {d.status === 'ready' && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}

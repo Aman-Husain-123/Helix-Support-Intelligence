@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useUser } from '../../context/AuthContext';
 
 interface ShellLayoutProps {
   sidebar: React.ReactNode;
@@ -11,6 +12,7 @@ const navItems = ['Workspace', 'Queues', 'Analytics', 'Knowledge Base', 'Reports
 export const ShellLayout: React.FC<ShellLayoutProps> = ({ sidebar, main, rightPanel }) => {
   const [activeNav, setActiveNav] = useState('Workspace');
   const [notifOpen, setNotifOpen] = useState(false);
+  const { user, logout } = useUser();
 
   return (
     <div className="flex h-screen min-h-0 flex-col bg-background text-slate-100 font-sans overflow-hidden">
@@ -39,8 +41,8 @@ export const ShellLayout: React.FC<ShellLayoutProps> = ({ sidebar, main, rightPa
                 key={item}
                 onClick={() => setActiveNav(item)}
                 className={`relative px-3 py-1.5 text-[12px] font-medium rounded-md transition-all duration-150 ${activeNav === item
-                    ? 'text-slate-100 bg-indigo-500/15 after:absolute after:inset-x-0 after:bottom-0'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  ? 'text-slate-100 bg-indigo-500/15 after:absolute after:inset-x-0 after:bottom-0'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                   }`}
               >
                 {item}
@@ -111,10 +113,23 @@ export const ShellLayout: React.FC<ShellLayoutProps> = ({ sidebar, main, rightPa
             <kbd className="hidden sm:flex h-4 items-center rounded border border-slate-700 bg-slate-900 px-1 text-[9px] text-slate-500 font-mono">⌘K</kbd>
           </button>
 
+          {/* Role badge */}
+          <span className={`hidden sm:flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold capitalize ${user?.role === 'admin' ? 'border-rose-500/20 bg-rose-500/8 text-rose-400'
+              : user?.role === 'customer' ? 'border-violet-500/20 bg-violet-500/8 text-violet-400'
+                : 'border-indigo-500/20 bg-indigo-500/8 text-indigo-400'
+            }`}>
+            {user?.role}
+          </span>
+
           {/* Avatar */}
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-400 text-[11px] font-bold text-white cursor-pointer ring-2 ring-indigo-500/20 hover:ring-indigo-500/50 transition">
-            AR
+          <div className={`flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr ${user?.avatarColor ?? 'from-indigo-500 to-cyan-400'} text-[11px] font-bold text-white cursor-pointer ring-2 ring-indigo-500/20 hover:ring-indigo-500/50 transition`}>
+            {user?.avatarInitials}
           </div>
+
+          {/* Sign out */}
+          <button onClick={logout} className="hidden sm:flex text-[11px] text-slate-500 hover:text-slate-200 transition">
+            Sign out
+          </button>
         </div>
       </header>
 

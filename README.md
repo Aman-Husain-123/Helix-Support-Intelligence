@@ -84,7 +84,7 @@
 
 Below is the highly scalable, event-driven architecture model designed for this Support Intelligence platform:
 
-![Scalable AI Customer Support Architecture Diagram](./architecture-diagram.png)
+![Scalable AI Customer Support Architecture Diagram](./assets/architecture-diagram.png)
 
 ---
 

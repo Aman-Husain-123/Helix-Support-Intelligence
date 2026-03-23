@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useUser } from '../context/AuthContext';
+import { useChatWithRAG } from '../hooks/useChatWithRAG';
 
 // ── Customer View ────────────────────────────────────────────────────────────
 // Permissions: chat with AI, create/view tickets, browse help center
@@ -15,26 +16,21 @@ const HELP_ARTICLES = [
     { id: 6, title: 'Setting up SSO / SAML', category: 'Security', views: 410 },
 ];
 
-interface AiMsg { id: number; role: 'user' | 'ai'; text: string; time: string }
-const AI_REPLIES = [
-    "Thanks for reaching out! I've looked into your account and found the relevant information. The plan change from Standard to Growth on March 1st added prorated charges of $48 for the remaining billing cycle.",
-    "I understand your concern. Based on our documentation, you're entitled to a prorated refund if you downgrade within 7 days. Would you like me to initiate that for you?",
-    "Great question! Our API timeout limit is configurable up to 120 seconds with the Growth plan. Here's the relevant documentation section — I've linked it below.",
-];
-
 export const CustomerView: React.FC = () => {
     const { user, logout } = useUser();
     const [tab, setTab] = useState<CustomerTab>('chat');
-    const [messages, setMessages] = useState<AiMsg[]>([
-        { id: 1, role: 'ai', text: `Hi ${user?.name?.split(' ')[0]}! 👋 I'm Helix AI, your support assistant. How can I help you today?`, time: 'Just now' },
-    ]);
+
+    // AI Chat state from custom hook
     const [input, setInput] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
+    const { messages, isTyping, wsStatus, escalated, pipelineState, sendMessage, clearHistory, endRef } = useChatWithRAG(user?.id || 'guest');
+
+    // Tickets state
     const [ticketSubject, setTicketSubject] = useState('');
     const [ticketBody, setTicketBody] = useState('');
     const [ticketCreated, setTicketCreated] = useState(false);
+
+    // Help Center state
     const [helpSearch, setHelpSearch] = useState('');
-    const endRef = useRef<HTMLDivElement>(null);
 
     const MY_TICKETS = [
         { id: 'TCK-4821', subject: 'Invoice higher than expected', status: 'open', updated: '2m ago', priority: 'high' },
@@ -42,23 +38,10 @@ export const CustomerView: React.FC = () => {
         { id: 'TCK-4710', subject: 'Export missing rows', status: 'resolved', updated: '2d ago', priority: 'medium' },
     ];
 
-    const sendMessage = async () => {
-        const text = input.trim();
-        if (!text) return;
-        const userMsg: AiMsg = { id: Date.now(), role: 'user', text, time: 'Just now' };
-        setMessages((p) => [...p, userMsg]);
+    const handleSend = () => {
+        if (!input.trim() || escalated) return;
+        sendMessage(input);
         setInput('');
-        setIsTyping(true);
-        setTimeout(() => {
-            const aiMsg: AiMsg = {
-                id: Date.now() + 1, role: 'ai',
-                text: AI_REPLIES[Math.floor(Math.random() * AI_REPLIES.length)],
-                time: 'Just now',
-            };
-            setMessages((p) => [...p, aiMsg]);
-            setIsTyping(false);
-            setTimeout(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-        }, 1600);
     };
 
     const filteredArticles = HELP_ARTICLES.filter(
@@ -125,31 +108,77 @@ export const CustomerView: React.FC = () => {
                                     <p className="text-[13px] font-semibold text-slate-100">Helix AI Assistant</p>
                                     <p className="text-[10px] text-slate-500">Powered by GPT-4o · RAG · Vector DB</p>
                                 </div>
-                                <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping-slow" />Online
-                                </span>
+                                <div className="ml-auto flex flex-col items-end">
+                                    <button onClick={clearHistory} className="mb-1 text-[9px] text-slate-500 hover:text-slate-300 transition">Clear History</button>
+                                    <span className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold tracking-wide uppercase ${wsStatus === 'connected' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                        : wsStatus === 'reconnecting' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                                            : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                                        }`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${wsStatus === 'connected' ? 'bg-emerald-400 animate-pulse'
+                                            : wsStatus === 'reconnecting' ? 'bg-amber-400 animate-ping'
+                                                : 'bg-indigo-400'
+                                            }`} />
+                                        {wsStatus === 'connected' ? 'WebSocket Connected' : wsStatus === 'reconnecting' ? 'Reconnecting...' : 'REST Fallback (WS Slow)'}
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-4 px-6 py-5">
-                                {messages.map((m) => (
-                                    <div key={m.id} className={`flex gap-3 animate-slide-up ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                        <div className={`h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${m.role === 'ai' ? 'bg-gradient-to-br from-indigo-500 to-cyan-400' : `bg-gradient-to-br ${user?.avatarColor}`
-                                            }`}>
-                                            {m.role === 'ai' ? '✦' : user?.avatarInitials}
+                                {messages.map((m) => {
+                                    if (m.role === 'system') {
+                                        return (
+                                            <div key={m.id} className="my-6 flex justify-center animate-fade-in">
+                                                <div className="flex max-w-sm flex-col items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-center">
+                                                    <span className="text-lg">🚨</span>
+                                                    <p className="text-[11px] font-medium leading-relaxed text-indigo-200">{m.text}</p>
+                                                    <span className="text-[9px] text-indigo-400/60">{m.time}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div key={m.id} className={`flex gap-3 animate-slide-up ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                            <div className={`h-8 w-8 flex-shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-md ${m.role === 'ai' ? 'bg-gradient-to-br from-indigo-500 to-cyan-400' : `bg-gradient-to-br ${user?.avatarColor}`
+                                                }`}>
+                                                {m.role === 'ai' ? '✦' : user?.avatarInitials}
+                                            </div>
+                                            <div className="flex flex-col gap-1 max-w-xl">
+                                                <div className={`rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed shadow-sm ${m.role === 'ai'
+                                                        ? 'bg-slate-800/80 border border-slate-700 text-slate-100 rounded-tl-sm'
+                                                        : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
+                                                    }`}>
+                                                    {m.text}
+                                                </div>
+                                                {/* Citations block */}
+                                                {(m as any).citations && ((m as any).citations.length > 0) && (
+                                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                        {((m as any).citations as any[]).map((c, idx) => (
+                                                            <div key={idx} className="group relative flex cursor-pointer items-center gap-1 rounded border border-slate-700 bg-slate-800/50 px-2 py-0.5 hover:border-indigo-500/50 transition">
+                                                                <span className="text-[9px] font-mono text-indigo-400">[{idx + 1}]</span>
+                                                                <span className="text-[10px] text-slate-400 group-hover:text-slate-200 truncate max-w-[120px]">{c.title}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <span className={`text-[9px] text-slate-500 ${m.role === 'user' ? 'text-right' : 'text-left'}`}>{m.time}</span>
+                                            </div>
                                         </div>
-                                        <div className={`max-w-xl rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed shadow-sm ${m.role === 'ai'
-                                            ? 'bg-slate-900/80 border border-indigo-500/30 text-slate-100 rounded-tl-sm'
-                                            : 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-sm'
-                                            }`}>
-                                            {m.text}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
+
                                 {isTyping && (
-                                    <div className="flex gap-3">
+                                    <div className="flex animate-fade-in gap-3">
                                         <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-400 flex items-center justify-center text-[10px] text-white">✦</div>
-                                        <div className="flex items-center gap-1 rounded-2xl border border-indigo-500/20 bg-slate-900/80 px-4 py-3">
-                                            {[0, 1, 2].map((i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-indigo-400" style={{ animation: `typing 1.4s infinite ease-in-out ${i * 0.2}s` }} />)}
+                                        <div className="flex flex-col items-start gap-1">
+                                            <div className="flex items-center gap-1 rounded-2xl border border-indigo-500/20 bg-slate-900/80 px-4 py-3 shadow-md">
+                                                {[0, 1, 2].map((i) => <span key={i} className="h-1.5 w-1.5 rounded-full bg-indigo-400" style={{ animation: `typing 1.4s infinite ease-in-out ${i * 0.2}s` }} />)}
+                                            </div>
+                                            {pipelineState && (
+                                                <p className="ml-2 mt-1 flex items-center gap-1.5 text-[10px] font-medium text-indigo-400/80 animate-pulse">
+                                                    <svg className="h-3 w-3 animate-spin text-indigo-500/60" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z" /></svg>
+                                                    {pipelineState}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -159,11 +188,12 @@ export const CustomerView: React.FC = () => {
                             <div className="flex-shrink-0 border-t border-border bg-sidebar/50 px-6 py-3">
                                 <div className="flex gap-2">
                                     <input value={input} onChange={(e) => setInput(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                                        placeholder="Ask Helix AI anything about your account…"
-                                        className="flex-1 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-500/60 transition" />
-                                    <button onClick={sendMessage} disabled={!input.trim()}
-                                        className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 px-5 py-2.5 text-[12px] font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:from-indigo-400 hover:to-indigo-500 disabled:opacity-40">
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                        placeholder={escalated ? "Agent has been assigned. You may message them here..." : "Ask Helix AI anything about your account…"}
+                                        disabled={escalated}
+                                        className="flex-1 rounded-xl border border-border bg-surface px-4 py-2.5 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-500/60 disabled:opacity-50 disabled:cursor-not-allowed transition" />
+                                    <button onClick={handleSend} disabled={!input.trim() || escalated}
+                                        className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 px-5 py-2.5 text-[12px] font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:from-indigo-400 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
                                         Send ↑
                                     </button>
                                 </div>

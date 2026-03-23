@@ -66,6 +66,18 @@
 - **Search button** with `⌘K` keyboard shortcut hint
 - **User avatar** (AR — Alex Rivera)
 
+### ⚙️ Admin Dashboard & Analytics
+- **Live Interactive Dashboard** — 4 core metric cards (Active, Open, AI Res Rate, Res Time) scaling dynamically with the system.
+- **Extended Analytics Page** — 6 deep-state metric models, weekly/status chart placeholders, and time-range bounds filtering.
+- **Smart Agent Management** — Live table with `available/busy/offline` agent filtering, plus an *Edit Agent Modal* for concurrent ticket limits and dynamic skill assignments.
+- **AI Configuration Panel** — Modify token limits (256 - 8192), temperature scales (0.0 - 2.0), and active LLM models safely stored contextually.
+- **Knowledge Base Settings** — Simulated real-time document upload pipeline linking file ingestion directly to `EURI`/`pgvector` RAG parsing states mapping `pending -> processing -> ready`.
+
+### 👤 Customer View
+- **Universal Ticket Gateway** — Customer-facing form dynamically injecting self-service reports directly into the `Agent Workspace`.
+- **Live Ticket Sync** — Tickets update dynamically reflecting real agent message replies and resolution workflows directly inside the client portal.
+- **Global TicketContext** — Seamless global state mapping unified round-robin auto-assignments, SLAs, and message arrays without backend latency.
+
 ---
 
 ## 🛠️ Tech Stack
@@ -86,9 +98,20 @@
 
 ```
 src/
-├── App.tsx                        # Root — wires activeConversationId state to all panels
+├── App.tsx                        # Root — wires Application routers and Context Providers
 ├── App.css                        # Minimal overrides  
 ├── index.css                      # Design system: fonts, scrollbar, glass utility, animations
+│
+├── context/
+│   ├── AuthContext.tsx            # Global Tenant Authentication variables
+│   └── TicketContext.tsx          # Real-time state hub driving round-robin auto-assignments
+│
+├── hooks/
+│   └── useChatWithRAG.ts          # EURI API vector embeddings integration for LLM retrieval
+│
+├── pages/
+│   ├── AdminView.tsx              # Comprehensive Analytics, KB ingestion, and AI Control Panel
+│   └── CustomerView.tsx           # Customer portal enabling Helpdesk searches & dynamic Ticket creation
 │
 └── components/
     ├── layout/

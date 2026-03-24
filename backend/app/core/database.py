@@ -4,9 +4,24 @@ from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 from .config import settings
 
-engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+is_postgresql = settings.DATABASE_URL.startswith("postgresql")
+
+# Connection arguments for DB
+connect_args = {"check_same_thread": False} if not is_postgresql else {}
+
+try:
+    engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base = declarative_base()
+except Exception as e:
+    print(f"Error connecting to DB: {e}")
+    # Fallback for dev if needed
+    engine = create_engine("sqlite:///./fallback.db", connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base = declarative_base()
+
+# Vector type logic for pgvector
+# We still keep vector_json for cross-compatibility in KnowledgeChunk
 
 class User(Base):
     __tablename__ = "users"

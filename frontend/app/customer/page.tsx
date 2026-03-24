@@ -290,9 +290,9 @@ function ProfileView({ user, logout }: any) {
     );
 }
 
-export default function CustomerDashboard() {
+export default function CustomerDashboard({ defaultActive = 'overview' }: { defaultActive?: string }) {
     const { user, loading, logout } = useUser('customer');
-    const [activeNav, setActiveNav] = useState('overview');
+    const [activeNav, setActiveNav] = useState(defaultActive);
     const { messages, sendMessage, isTyping, isConnected } = useChat(user?.sub || 'anonymous');
 
     if (loading) return (

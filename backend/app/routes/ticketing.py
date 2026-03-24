@@ -96,6 +96,50 @@ def add_ticket_message(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.get("/stats")
+def get_tenant_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from sqlalchemy import func
+    total = db.query(Ticket).filter(Ticket.tenant_id == current_user.tenant_id).count()
+    open_count = db.query(Ticket).filter(Ticket.tenant_id == current_user.tenant_id, Ticket.status == "open").count()
+    resolved_count = db.query(Ticket).filter(Ticket.tenant_id == current_user.tenant_id, Ticket.status == "resolved").count()
+    return {"total": total, "open": open_count, "resolved": resolved_count}
+
+@router.patch("/{ticket_id}/assign", response_model=TicketResponse)
+def assign_ticket(
+    ticket_id: int,
+    assignee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["agent", "admin"]))
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket.assignee_id = assignee_id
+    db.commit()
+    db.refresh(ticket)
+    return ticket
+
+@router.post("/{ticket_id}/suggest")
+def suggest_reply_ai(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["agent", "admin"]))
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Simple logic to gather context
+    suggestion = AIService.suggest_agent_reply(
+        query=ticket.description or "",
+        history=ticket.messages,
+        knowledge_chunks=[] # Could inject chunks here
+    )
+    return {"suggestion": suggestion}
+
 @router.post("/{ticket_id}/summarize", response_model=TicketResponse)
 def summarize_ticket(
     ticket_id: int,

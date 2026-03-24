@@ -55,6 +55,36 @@ const NAV = [
 
 // ---- Sub-views ----
 function DashboardView({ user, logout }: any) {
+    const [stats, setStats] = useState({
+        openTickets: 0,
+        activeConvos: 0,
+        avgResolution: '4.2h',
+        aiRate: '35%'
+    });
+    const [recentTickets, setRecentTickets] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            const token = localStorage.getItem('access_token');
+            try {
+                const tRes = await fetch('http://localhost:8000/api/ticketing/all', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (tRes.ok) {
+                    const data = await tRes.json();
+                    setRecentTickets(data.slice(0, 5));
+                    setStats(prev => ({
+                        ...prev,
+                        openTickets: data.filter((t: any) => t.status === 'open').length
+                    }));
+                }
+            } catch (error) {
+                console.error("Dashboard fetch error:", error);
+            }
+        };
+        fetchDashboardData();
+    }, []);
+
     return (
         <div className="grid grid-cols-[1fr_280px] gap-6 h-full overflow-y-auto p-6">
             <div className="space-y-6">
@@ -64,10 +94,10 @@ function DashboardView({ user, logout }: any) {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     {[
-                        { label: 'Open Tickets', value: '12', sub: '+3 from yesterday', icon: MessageSquare, color: 'text-blue-400' },
-                        { label: 'Active Conversations', value: '5', sub: '2 pending AI handoff', icon: Zap, color: 'text-accent-400' },
-                        { label: 'Avg Resolution Time', value: '4.2h', sub: '−0.8h from last week', icon: Clock, color: 'text-green-400' },
-                        { label: 'AI Resolution Rate', value: '35%', sub: '+5% from last week', icon: TrendingUp, color: 'text-orange-400' },
+                        { label: 'Open Tickets', value: stats.openTickets, sub: 'Live from system', icon: MessageSquare, color: 'text-blue-400' },
+                        { label: 'Active Conversations', value: stats.activeConvos, sub: '2 pending AI handoff', icon: Zap, color: 'text-accent-400' },
+                        { label: 'Avg Resolution Time', value: stats.avgResolution, sub: 'Enterprise benchmark', icon: Clock, color: 'text-green-400' },
+                        { label: 'AI Resolution Rate', value: stats.aiRate, sub: 'Target: 50%', icon: TrendingUp, color: 'text-orange-400' },
                     ].map(({ label, value, sub, icon: Icon, color }) => (
                         <div key={label} className="bg-surface-800/60 border border-surface-750 rounded-xl p-5">
                             <div className="flex items-center justify-between mb-3">
@@ -85,21 +115,26 @@ function DashboardView({ user, logout }: any) {
                         <button className="text-xs text-accent-400 hover:text-accent-300 flex items-center gap-1">View all <ExternalLink size={10} /></button>
                     </div>
                     <div className="space-y-2">
-                        {TICKETS.map(t => (
+                        {recentTickets.length > 0 ? recentTickets.map((t: any) => (
                             <div key={t.id} className="bg-surface-800/60 border border-surface-750 rounded-xl px-5 py-4 flex items-center justify-between hover:border-surface-600 transition-colors cursor-pointer group">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-surface-500 text-xs font-mono">{t.id}</span>
+                                    <span className="text-surface-500 text-xs font-mono">TCK-{t.id}</span>
                                     <div>
                                         <p className="text-sm font-medium text-surface-200 group-hover:text-white transition-colors">{t.subject}</p>
-                                        <p className="text-xs text-surface-500 mt-0.5">{t.customer} · Updated {t.updated}</p>
+                                        <p className="text-xs text-surface-500 mt-0.5">{t.customer_email || 'Anonymous'} · {new Date(t.created_at).toLocaleDateString()}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${PRIORITY_BADGE[t.priority]}`}>{t.priority}</span>
-                                    <span className={`text-xs px-2 py-0.5 rounded ${t.status === 'Resolved' ? 'text-green-400 bg-green-500/10' : 'text-blue-400 bg-blue-500/10'}`}>{t.status}</span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${PRIORITY_BADGE[t.priority.toUpperCase()] || PRIORITY_BADGE['MEDIUM']}`}>{t.priority.toUpperCase()}</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded ${t.status === 'resolved' ? 'text-green-400 bg-green-500/10' : 'text-blue-400 bg-blue-500/10'}`}>{t.status}</span>
                                 </div>
                             </div>
-                        ))}
+                        )) : (
+                            <div className="py-12 text-center text-surface-600 border-2 border-dashed border-surface-800 rounded-2xl">
+                                <MessageSquare size={32} className="mx-auto mb-3 opacity-20" />
+                                <p>No active tickets in this workspace.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -311,22 +346,33 @@ function AIView() {
 }
 
 function KnowledgeView({ user }: any) {
-    const [docs, setDocs] = useState([
-        { id: 1, name: 'Product Manual v2.pdf', type: 'pdf', status: 'ready', chunks: 142, updated: '2h ago' },
-        { id: 2, name: 'API Documentation', type: 'url', status: 'ready', chunks: 89, updated: '1d ago' },
-        { id: 3, name: 'FAQ Handbook.md', type: 'md', status: 'processing', chunks: 0, updated: '5m ago' },
-        { id: 4, name: 'Billing Guide.txt', type: 'txt', status: 'failed', chunks: 0, updated: '3h ago' },
-    ]);
+    const [docs, setDocs] = useState<any[]>([]);
     const [urlInput, setUrlInput] = useState('');
     const [urlName, setUrlName] = useState('');
     const fileRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+
+    useEffect(() => {
+        fetchDocs();
+    }, []);
+
+    const fetchDocs = async () => {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('http://localhost:8000/api/knowledge/documents', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setDocs(await res.json());
+        } catch (error) { console.error("Docs fetch error:", error); }
+    };
+
     const STATUS_ICON: Record<string, any> = {
         ready: <CheckCircle2 size={14} className="text-green-400" />,
         processing: <Loader2 size={14} className="text-yellow-400 animate-spin" />,
         failed: <XCircle size={14} className="text-red-400" />,
         pending: <Clock size={14} className="text-surface-400" />,
     };
+
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -335,22 +381,29 @@ function KnowledgeView({ user }: any) {
         const form = new FormData();
         form.append('file', file);
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/knowledge/documents/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
+            const res = await fetch('http://localhost:8000/api/knowledge/documents/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: form
+            });
             if (res.ok) {
-                const doc = await res.json();
-                setDocs(prev => [{ id: doc.id, name: doc.name, type: doc.source_type, status: doc.status, chunks: doc.chunk_count, updated: 'just now' }, ...prev]);
+                await fetchDocs();
             }
         } catch { }
         setUploading(false);
     };
+
     const handleIngestURL = async () => {
         if (!urlInput || !urlName) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/knowledge/documents/ingest-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ url: urlInput, name: urlName }) });
+            const res = await fetch('http://localhost:8000/api/knowledge/documents/ingest-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ url: urlInput, name: urlName })
+            });
             if (res.ok) {
-                const doc = await res.json();
-                setDocs(prev => [{ id: doc.id, name: doc.name, type: 'url', status: doc.status, chunks: 0, updated: 'just now' }, ...prev]);
+                await fetchDocs();
                 setUrlInput(''); setUrlName('');
             }
         } catch { }

@@ -15,7 +15,7 @@ from ..core.database import get_db, KnowledgeCollection, KnowledgeDocument
 from ..core.security import require_role
 from ..services.ingestion_service import ingest_file, ingest_url
 
-router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 # ─────────── Schemas ───────────
 class CollectionCreate(BaseModel):

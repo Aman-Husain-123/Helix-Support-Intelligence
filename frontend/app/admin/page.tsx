@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useUser } from '../../hooks/useUser';
 import {
     LayoutDashboard, BarChart2, Users, Brain, BookOpen, Settings, LogOut,
@@ -67,7 +67,7 @@ function DashboardView({ user, logout }: any) {
         const fetchDashboardData = async () => {
             const token = localStorage.getItem('access_token');
             try {
-                const tRes = await fetch('http://localhost:8000/api/ticketing/all', {
+                const tRes = await fetch('http://localhost:8000/api/v1/ticketing/all', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (tRes.ok) {
@@ -359,7 +359,7 @@ function KnowledgeView({ user }: any) {
     const fetchDocs = async () => {
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://localhost:8000/api/knowledge/documents', {
+            const res = await fetch('http://localhost:8000/api/v1/knowledge/documents', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) setDocs(await res.json());
@@ -381,7 +381,7 @@ function KnowledgeView({ user }: any) {
         const form = new FormData();
         form.append('file', file);
         try {
-            const res = await fetch('http://localhost:8000/api/knowledge/documents/upload', {
+            const res = await fetch('http://localhost:8000/api/v1/knowledge/documents/upload', {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
                 body: form
@@ -397,7 +397,7 @@ function KnowledgeView({ user }: any) {
         if (!urlInput || !urlName) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://localhost:8000/api/knowledge/documents/ingest-url', {
+            const res = await fetch('http://localhost:8000/api/v1/knowledge/documents/ingest-url', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ url: urlInput, name: urlName })

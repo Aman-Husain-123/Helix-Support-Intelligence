@@ -1,33 +1,16 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useUser } from '../../hooks/useUser';
 import { useChat } from '../../hooks/useChat';
 import {
     Bot, MessageSquare, Ticket as TicketIcon, Bell, Settings, LogOut,
-    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon, Plus, X, AlertTriangle, BookOpen
+    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon, Plus, X, AlertTriangle, BookOpen, RefreshCw
 } from 'lucide-react';
 
-const SIDE_ICONS = [
-    { icon: Bot, label: 'AI', id: 'ai' },
-    { icon: TicketIcon, label: 'Tickets', id: 'tickets' },
-    { icon: Bell, label: 'Notifs', id: 'notifs' },
-    { icon: UserIcon, label: 'Profile', id: 'profile' },
-];
+const BASE_URL = 'http://localhost:8000/api/v1';
 
-const MY_TICKETS = [
-    { id: 'TCK-4785', subject: '2FA reset request', status: 'resolved', updated: '34m ago', priority: 'URGENT' },
-    { id: 'TCK-4601', subject: 'Billing discrepancy Q1', status: 'open', updated: '2d ago', priority: 'HIGH' },
-    { id: 'TCK-4389', subject: 'Integration webhook setup', status: 'closed', updated: '5d ago', priority: 'MEDIUM' },
-];
-
-const STATUS_CHIP: Record<string, string> = {
-    resolved: 'text-green-400 bg-green-500/10',
-    open: 'text-blue-400 bg-blue-500/10',
-    closed: 'text-surface-500 bg-surface-800',
-};
-
-function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
+function AIChat({ user, messages, sendMessage, isTyping, isConnected, onEscalate }: any) {
     const [input, setInput] = useState('');
     const bottomRef = useRef<HTMLDivElement>(null);
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
@@ -46,15 +29,12 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-500 to-blue-600 flex items-center justify-center shadow-lg shadow-accent-500/20"><Bot size={18} /></div>
                     <div>
                         <p className="font-semibold text-white text-sm">Helix AI Assistant</p>
-                        <p className="text-[10px] text-surface-500">Powered by GPT-4o · RAG · Vector DB</p>
+                        <p className="text-[10px] text-surface-500">Powered by EURI · RAG · Vector DB</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button className="text-xs text-surface-400 hover:text-white">Close History</button>
-                    <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded border ${isConnected ? 'border-green-500/30 text-green-400 bg-green-500/10' : 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isConnected ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                        {isConnected ? 'LIVE' : 'REST FALLBACK (WS SLOW)'}
-                    </div>
+                <div className={`flex items-center gap-1.5 text-[10px] px-2 py-1 rounded border ${isConnected ? 'border-green-500/30 text-green-400 bg-green-500/10' : 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isConnected ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                    {isConnected ? 'LIVE' : 'RECONNECTING...'}
                 </div>
             </div>
 
@@ -68,8 +48,6 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
                                 <p className="text-surface-200 text-sm">Hi! 👋 I'm Helix AI. How can I help you today?</p>
                             </div>
                         </div>
-                        <p className="text-[10px] text-surface-600 ml-12">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                        {/* Quick prompts */}
                         <div className="ml-12 mt-2 flex flex-wrap gap-2">
                             {['How do I reset my 2FA?', 'Check my invoice status', 'What are your API limits?'].map(q => (
                                 <button key={q} onClick={() => sendMessage(q)} className="text-xs bg-surface-800 border border-surface-700 hover:border-accent-500/50 text-surface-300 px-3 py-1.5 rounded-full transition-colors hover:text-white">{q}</button>
@@ -83,24 +61,29 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
                         {msg.sender !== 'user' && <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-500 to-blue-600 flex items-center justify-center shrink-0 mt-1"><Bot size={16} /></div>}
                         <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} gap-1`}>
                             <div className={`rounded-2xl px-5 py-3 text-sm leading-relaxed ${msg.sender === 'user' ? 'bg-accent-600 text-white rounded-tr-sm' : 'bg-surface-800 border border-surface-700 text-surface-200 rounded-tl-sm'}`}>
-                                <p>{msg.text}</p>
+                                <p className="whitespace-pre-wrap">{msg.text}</p>
 
                                 {msg.type === 'escalation' && (
                                     <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                                        <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={10} /> Intelligence Upgrade Required</p>
-                                        <p className="text-xs text-surface-400 mb-4 font-medium italic">It seems this request is complex. I've alerted our team to help you faster.</p>
-                                        <button onClick={() => { /* logic to switch to tickets tab */ }} className="w-full py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-red-500/10">Open Priority Ticket</button>
+                                        <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={10} /> Human Agent Needed</p>
+                                        <p className="text-xs text-surface-400 mb-4">Our AI has flagged this as complex. An agent will take over.</p>
+                                        <button
+                                            onClick={() => onEscalate()}
+                                            className="w-full py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-red-500/10"
+                                        >
+                                            Open Priority Ticket
+                                        </button>
                                     </div>
                                 )}
 
                                 {msg.sources?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-surface-750">
-                                        <p className="w-full text-[9px] font-black text-surface-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><BookOpen size={9} /> Sources Verified</p>
+                                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-surface-700">
+                                        <p className="w-full text-[9px] font-black text-surface-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><BookOpen size={9} /> Sources</p>
                                         {msg.sources.map((s: string, i: number) => <span key={i} className="text-[9px] bg-accent-500/10 text-accent-400 px-2 py-0.5 rounded border border-accent-500/20 font-bold">[{i + 1}] {s}</span>)}
                                     </div>
                                 )}
                             </div>
-                            <p className="text-[10px] text-surface-600 px-1">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-[10px] text-surface-600 px-1">{msg.timestamp}</p>
                         </div>
                         {msg.sender === 'user' && <div className="w-9 h-9 rounded-full bg-surface-700 flex items-center justify-center shrink-0 mt-1 text-xs font-bold">{user?.sub?.[0]?.toUpperCase()}</div>}
                     </div>
@@ -118,77 +101,99 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
             </div>
 
             <div className="border-t border-surface-800 px-6 py-4">
-                <div className="text-[10px] text-surface-600 text-center mb-3">
-                    {isConnected ? 'Agent has been assigned. You may message them here...' : 'Connecting to support...'}
-                </div>
                 <form onSubmit={handleSend} className="flex items-center gap-3">
                     <input value={input} onChange={e => setInput(e.target.value)}
                         placeholder="Ask a question or describe your issue..."
                         className="flex-1 bg-surface-800 border border-surface-700 text-surface-200 placeholder:text-surface-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-accent-500/50 transition-all" />
-                    <button type="submit" disabled={!input.trim()} className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all ${input.trim() ? 'bg-accent-600 hover:bg-accent-500 text-white shadow-lg shadow-accent-500/20' : 'bg-surface-800 text-surface-600 cursor-not-allowed'}`}>
+                    <button type="submit" disabled={!input.trim() || !isConnected}
+                        className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all ${input.trim() && isConnected ? 'bg-accent-600 hover:bg-accent-500 text-white shadow-lg shadow-accent-500/20' : 'bg-surface-800 text-surface-600 cursor-not-allowed'}`}>
                         Send <Send size={14} />
                     </button>
                 </form>
-                <p className="text-[10px] text-surface-700 text-center mt-3">AI responses are based on your account data and our knowledge base</p>
+                <p className="text-[10px] text-surface-700 text-center mt-3">AI responses are grounded in your knowledge base</p>
             </div>
         </div>
     );
 }
 
-function TicketsView({ user }: any) {
+function TicketsView({ user, onTicketCreated, initialShowCreate }: any) {
     const [tickets, setTickets] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showCreate, setShowCreate] = useState(false);
+    const [showCreate, setShowCreate] = useState(initialShowCreate || false);
     const [formData, setFormData] = useState({ subject: '', description: '', priority: 'medium' });
+    const [submitting, setSubmitting] = useState(false);
+    const [notification, setNotification] = useState('');
 
-    useEffect(() => {
-        fetchTickets();
-    }, []);
-
-    const fetchTickets = async () => {
+    // Poll for new tickets every 8 seconds for live updates
+    const fetchTickets = useCallback(async () => {
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://localhost:8000/api/ticketing/me', {
+            const res = await fetch(`${BASE_URL}/ticketing/me`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setTickets(await res.json());
         } catch (e) { }
         setLoading(false);
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchTickets();
+        const interval = setInterval(fetchTickets, 8000);
+        return () => clearInterval(interval);
+    }, [fetchTickets]);
+
+    // Open create modal if escalated from AI
+    useEffect(() => {
+        if (initialShowCreate) setShowCreate(true);
+    }, [initialShowCreate]);
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitting(true);
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://localhost:8000/api/ticketing/create', {
+            const res = await fetch(`${BASE_URL}/ticketing/create`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify(formData)
             });
             if (res.ok) {
+                const ticket = await res.json();
                 setShowCreate(false);
                 setFormData({ subject: '', description: '', priority: 'medium' });
+                setNotification(`Ticket #${ticket.id} created! An agent has been assigned.`);
+                setTimeout(() => setNotification(''), 5000);
                 fetchTickets();
+                onTicketCreated?.();
             }
         } catch (e) { }
+        setSubmitting(false);
     };
 
     return (
         <div className="flex-1 p-8 overflow-y-auto space-y-6 relative">
+            {notification && (
+                <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-emerald-500/20 flex items-center gap-3 animate-in slide-in-from-top-4 duration-300">
+                    <CheckCircle2 size={16} /> {notification}
+                </div>
+            )}
+
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-white tracking-tight">Support Tickets</h2>
                     <p className="text-surface-500 text-sm mt-1">Manage and track your active inquiries</p>
                 </div>
-                <button
-                    onClick={() => setShowCreate(true)}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
-                >
-                    <Plus size={16} /> New Ticket
-                </button>
+                <div className="flex items-center gap-3">
+                    <button onClick={fetchTickets} className="text-surface-500 hover:text-white p-2 rounded-lg hover:bg-surface-800 transition-all" title="Refresh">
+                        <RefreshCw size={16} />
+                    </button>
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+                    >
+                        <Plus size={16} /> New Ticket
+                    </button>
+                </div>
             </div>
 
             {loading ? (
@@ -204,13 +209,15 @@ function TicketsView({ user }: any) {
                     {tickets.map(t => (
                         <div key={t.id} className="bg-surface-800/60 border border-surface-750 p-6 rounded-2xl flex items-center justify-between group hover:border-surface-600 transition-all cursor-pointer">
                             <div className="flex items-center gap-5">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-bold ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>#{t.id.toString().slice(-4)}</div>
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-bold ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : t.status === 'open' ? 'bg-blue-500/10 text-blue-400' : 'bg-surface-700 text-surface-400'}`}>#{String(t.id).slice(-4)}</div>
                                 <div>
                                     <h3 className="text-white font-semibold group-hover:text-emerald-400 transition-colors">{t.subject}</h3>
                                     <div className="flex items-center gap-4 mt-1">
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>{t.status}</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : t.status === 'open' ? 'bg-blue-500/10 text-blue-400' : 'bg-surface-700 text-surface-400'}`}>{t.status}</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${t.priority === 'urgent' ? 'text-red-400' : t.priority === 'high' ? 'text-orange-400' : 'text-surface-500'}`}>{t.priority}</span>
                                         <span className="text-[10px] text-surface-600 flex items-center gap-1"><Clock size={10} /> {new Date(t.created_at).toLocaleDateString()}</span>
                                     </div>
+                                    {t.description && <p className="text-[11px] text-surface-500 mt-1.5 line-clamp-1">{t.description}</p>}
                                 </div>
                             </div>
                             <ArrowUpRight size={18} className="text-surface-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
@@ -220,10 +227,13 @@ function TicketsView({ user }: any) {
             )}
 
             {showCreate && (
-                <div className="absolute inset-0 z-50 bg-surface-950/80 backdrop-blur-md flex items-center justify-center p-6">
-                    <div className="bg-surface-900 border border-surface-800 rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 z-50 bg-surface-950/80 backdrop-blur-md flex items-center justify-center p-6">
+                    <div className="bg-surface-900 border border-surface-800 rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden">
                         <div className="p-8 border-b border-surface-800 flex items-center justify-between">
-                            <h3 className="text-xl font-bold text-white">Open New Ticket</h3>
+                            <div>
+                                <h3 className="text-xl font-bold text-white">Open New Ticket</h3>
+                                <p className="text-surface-500 text-sm mt-1">An agent will be auto-assigned immediately</p>
+                            </div>
                             <button onClick={() => setShowCreate(false)} className="text-surface-500 hover:text-white transition-colors"><X size={20} /></button>
                         </div>
                         <form onSubmit={handleCreate} className="p-8 space-y-5">
@@ -245,7 +255,9 @@ function TicketsView({ user }: any) {
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-surface-800 hover:bg-surface-750 text-surface-300 py-3 rounded-xl text-sm font-bold transition-all">Cancel</button>
-                                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all">Submit Ticket</button>
+                                <button type="submit" disabled={submitting} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-60">
+                                    {submitting ? 'Submitting...' : 'Submit Ticket'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -264,20 +276,8 @@ function ProfileView({ user, logout }: any) {
                 <div>
                     <p className="text-lg font-bold text-white">{user?.sub}</p>
                     <p className="text-sm text-surface-400 capitalize">{user?.role} · {user?.tenant_id}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-xs text-green-400">Active account</span>
-                    </div>
+                    <div className="flex items-center gap-1.5 mt-1"><span className="w-2 h-2 rounded-full bg-green-500" /><span className="text-xs text-green-400">Active account</span></div>
                 </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-                {[{ label: 'Tickets', value: '3', icon: TicketIcon }, { label: 'CSAT', value: '4.8', icon: Star }, { label: 'Joined', value: 'Mar 24', icon: Clock }].map(({ label, value, icon: Icon }) => (
-                    <div key={label} className="bg-surface-800/60 border border-surface-750 rounded-xl p-4 text-center">
-                        <Icon size={16} className="mx-auto text-surface-500 mb-2" />
-                        <p className="text-xl font-black text-white">{value}</p>
-                        <p className="text-xs text-surface-500 mt-0.5">{label}</p>
-                    </div>
-                ))}
             </div>
             <div className="bg-surface-800/60 border border-surface-750 rounded-xl p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-surface-200">Account Settings</h3>
@@ -290,10 +290,25 @@ function ProfileView({ user, logout }: any) {
     );
 }
 
-export default function CustomerDashboard({ defaultActive = 'overview' }: { defaultActive?: string }) {
+export default function CustomerDashboard() {
     const { user, loading, logout } = useUser('customer');
-    const [activeNav, setActiveNav] = useState(defaultActive);
+    const [activeNav, setActiveNav] = useState('overview');
+    const [showCreateTicket, setShowCreateTicket] = useState(false);
     const { messages, sendMessage, isTyping, isConnected } = useChat(user?.sub || 'anonymous');
+
+    // When AI escalates → switch to tickets and open create modal
+    const handleEscalate = useCallback(() => {
+        setShowCreateTicket(true);
+        setActiveNav('tickets');
+    }, []);
+
+    // Auto-check for escalation messages from AI
+    useEffect(() => {
+        const last = messages[messages.length - 1];
+        if (last?.type === 'escalation') {
+            // Don't auto-navigate, let user click the button in the chat
+        }
+    }, [messages]);
 
     if (loading) return (
         <div className="h-screen w-screen flex items-center justify-center bg-surface-950">
@@ -322,16 +337,18 @@ export default function CustomerDashboard({ defaultActive = 'overview' }: { defa
                             <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">Support Hub</span>
                         </div>
                     </div>
-
                     <div className="hidden md:flex items-center gap-1 bg-surface-900/50 p-1.5 rounded-2xl border border-surface-800/50">
                         {NAV_ITEMS.map(item => (
                             <button
                                 key={item.id}
-                                onClick={() => setActiveNav(item.id)}
+                                onClick={() => { setActiveNav(item.id); setShowCreateTicket(false); }}
                                 className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 ${activeNav === item.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-surface-500 hover:text-white hover:bg-surface-800'}`}
                             >
                                 <item.icon size={16} />
                                 {item.label}
+                                {item.id === 'tickets' && messages.some((m: any) => m.type === 'escalation') && (
+                                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                )}
                             </button>
                         ))}
                     </div>
@@ -343,7 +360,7 @@ export default function CustomerDashboard({ defaultActive = 'overview' }: { defa
                         <span className="text-[10px] text-surface-600 font-medium uppercase tracking-widest">{user?.tenant_id} customer</span>
                     </div>
                     <div className="relative group">
-                        <button className="w-11 h-11 rounded-2xl bg-surface-900 border border-surface-800 flex items-center justify-center hover:border-emerald-500/50 transition-all group-hover:scale-105 active:scale-95 overflow-hidden">
+                        <button className="w-11 h-11 rounded-2xl bg-surface-900 border border-surface-800 flex items-center justify-center hover:border-emerald-500/50 transition-all group-hover:scale-105 active:scale-95">
                             <UserIcon size={20} className="text-emerald-500" />
                         </button>
                         <div className="absolute top-full right-0 mt-3 w-56 bg-surface-900 border border-surface-800 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2 z-[100]">
@@ -354,34 +371,31 @@ export default function CustomerDashboard({ defaultActive = 'overview' }: { defa
                 </div>
             </nav>
 
-            {/* Main Content Area */}
+            {/* Main Content */}
             <main className="max-w-7xl mx-auto px-8 py-10">
                 {activeNav === 'overview' && (
                     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                        {/* Hero Section */}
                         <div className="relative overflow-hidden bg-surface-900 rounded-[48px] p-16 border border-surface-800/50">
                             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
                             <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-blue-500/5 rounded-full blur-[100px]" />
-
                             <div className="relative z-10 max-w-2xl">
                                 <h1 className="text-6xl font-black text-white leading-[1.1] tracking-tight mb-6">
                                     How can we <span className="text-emerald-500">help you</span> today?
                                 </h1>
                                 <p className="text-xl text-surface-400 leading-relaxed mb-10">
-                                    Search our knowledge base or chat with our AI agent to resolve issues instantly.
+                                    Chat with our AI powered by your knowledge base, or raise a support ticket for complex issues.
                                 </p>
                                 <div className="flex flex-wrap gap-4">
                                     <button onClick={() => setActiveNav('ai')} className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-black shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-3">
                                         <Bot size={20} /> Ask Helix AI
                                     </button>
-                                    <button onClick={() => setActiveNav('tickets')} className="px-8 py-4 bg-surface-800 hover:bg-surface-750 text-white rounded-2xl font-black border border-surface-700 transition-all flex items-center gap-3">
+                                    <button onClick={() => { setActiveNav('tickets'); setShowCreateTicket(true); }} className="px-8 py-4 bg-surface-800 hover:bg-surface-750 text-white rounded-2xl font-black border border-surface-700 transition-all flex items-center gap-3">
                                         <Plus size={20} /> Open a Ticket
                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Recent Activity / Overview Stats */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-surface-900/50 border border-surface-800 p-8 rounded-[32px] hover:border-surface-700 transition-all cursor-pointer" onClick={() => setActiveNav('tickets')}>
                                 <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6"><TicketIcon size={24} /></div>
@@ -391,7 +405,7 @@ export default function CustomerDashboard({ defaultActive = 'overview' }: { defa
                             </div>
                             <div className="bg-surface-900/50 border border-surface-800 p-8 rounded-[32px] hover:border-surface-700 transition-all cursor-pointer" onClick={() => setActiveNav('ai')}>
                                 <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 mb-6"><MessageSquare size={24} /></div>
-                                <h3 className="text-lg font-bold text-white mb-2">Resolution Rate</h3>
+                                <h3 className="text-lg font-bold text-white mb-2">AI Resolution Rate</h3>
                                 <p className="text-surface-500 text-sm mb-6 leading-relaxed">Our AI resolves 85% of queries instantly. Try chatting before opening a ticket.</p>
                                 <div className="text-blue-500 font-bold text-sm flex items-center gap-2 group">Start AI conversation <ArrowUpRight size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /></div>
                             </div>
@@ -407,13 +421,24 @@ export default function CustomerDashboard({ defaultActive = 'overview' }: { defa
 
                 {activeNav === 'ai' && (
                     <div className="h-[700px] bg-surface-900 border border-surface-800 rounded-[40px] overflow-hidden shadow-2xl">
-                        <AIChat user={user} messages={messages} sendMessage={sendMessage} isTyping={isTyping} isConnected={isConnected} />
+                        <AIChat
+                            user={user}
+                            messages={messages}
+                            sendMessage={sendMessage}
+                            isTyping={isTyping}
+                            isConnected={isConnected}
+                            onEscalate={handleEscalate}
+                        />
                     </div>
                 )}
 
                 {activeNav === 'tickets' && (
                     <div className="bg-surface-900 border border-surface-800 rounded-[40px] p-4 min-h-[600px] shadow-2xl">
-                        <TicketsView user={user} />
+                        <TicketsView
+                            user={user}
+                            initialShowCreate={showCreateTicket}
+                            onTicketCreated={() => setShowCreateTicket(false)}
+                        />
                     </div>
                 )}
 

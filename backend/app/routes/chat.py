@@ -2,6 +2,7 @@ from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from typing import List, Dict
 import json
 import asyncio
+from ..core.database import get_db, User
 from ..services.ai_service import AIService
 from ..services.ingestion_service import vector_search
 
@@ -22,19 +23,23 @@ class ConnectionManager:
         await websocket.send_text(message)
 
 manager = ConnectionManager()
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     await manager.connect(user_id, websocket)
     db = next(get_db())
     # Identify tenant for RAG isolation
-    user = db.query(User).filter(User.id == int(user_id) if user_id.isdigit() else 0).first()
-    tenant_id = user.tenant_id if user else "default"
-    db.close()
+    try:
+        user = db.query(User).filter(User.id == int(user_id) if user_id.isdigit() else 0).first()
+        tenant_id = user.tenant_id if user else "default"
+    except Exception:
+        tenant_id = "default"
+    finally:
+        db.close()
     
     history = []
-    failed_attempts = 0 # for human escalation
+    failed_attempts = 0
     
     try:
         while True:
@@ -44,31 +49,31 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             
             # --- RAG Pipeline ---
             try:
-                # 1. Embeddings & Search (using real vector_search)
+                # 1. Embeddings & Search
                 query_embedding = AIService.get_embeddings(user_query)
                 context_chunks = vector_search(query_embedding, tenant_id=tenant_id)
                 
-                # 2. Generate grounded response
+                # 2. Generate response
                 ai_output = AIService.generate_ai_response(user_query, context_chunks, history)
                 ai_response = ai_output["text"]
                 sources = ai_output["sources"]
                 
-                # Update history
+                # Update history (keep last 10 turns)
                 history.append({"role": "user", "content": user_query})
                 history.append({"role": "assistant", "content": ai_response})
+                history = history[-20:]
                 
-                # Format response with source attribution
                 payload = {
                     "text": ai_response,
                     "sources": sources,
                     "status": "success",
                     "type": "ai"
                 }
-
                 await websocket.send_text(json.dumps(payload))
                 
-                # AI Logic: Simple 'I don't know' check for escalation
-                if "Logic Error" in ai_response or "trouble" in ai_response.lower():
+                # Escalation check
+                low_confidence_phrases = ["i don't know", "i'm not sure", "cannot help", "unable to assist", "contact support"]
+                if any(p in ai_response.lower() for p in low_confidence_phrases):
                     failed_attempts += 1
                 else:
                     failed_attempts = 0
@@ -76,16 +81,16 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             except Exception as e:
                 failed_attempts += 1
                 error_payload = {
-                    "text": f"I'm experiencing a technical glitch: {str(e)}",
+                    "text": f"I'm having a moment — let me try to help differently. ({str(e)[:60]})",
                     "type": "error",
                     "status": "fail"
                 }
                 await websocket.send_text(json.dumps(error_payload))
                 
-            # Escalation Check
+            # Escalation after 3 failures
             if failed_attempts >= 3:
                 await websocket.send_text(json.dumps({
-                    "text": "It seems I'm unable to resolve your specifically complex query. Connecting you to an available human agent now...",
+                    "text": "It seems this query needs a human touch. I'm connecting you to an available agent now.",
                     "type": "escalation",
                     "action": "open_ticket"
                 }))
@@ -101,7 +106,6 @@ async def rest_chat_fallback(request: dict):
     history = request.get("history", [])
     tenant_id = request.get("tenant_id", "default")
     
-    # Run the same RAG pipeline
     query_embedding = AIService.get_embeddings(user_query)
     context_chunks = vector_search(query_embedding, tenant_id=tenant_id)
     ai_output = AIService.generate_ai_response(user_query, context_chunks, history)

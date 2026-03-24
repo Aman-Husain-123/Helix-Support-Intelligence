@@ -6,10 +6,11 @@ from .routes.auth import router as auth_router
 from .routes.chat import router as chat_router
 from .routes.knowledge import router as knowledge_router
 from .routes.ticketing import router as ticketing_router
+from .routes.copilot import router as copilot_router
 from .core.security import require_role
 from .core.database import User
 
-app = FastAPI(title="Helix Support Intelligence API")
+app = FastAPI(title="Euron AI API")
 
 # Setup CORS for Frontend
 app.add_middleware(
@@ -35,19 +36,23 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(round(process_time * 1000, 2)) + "ms"
     return response
 
-app.include_router(auth_router)
-app.include_router(chat_router)
-app.include_router(knowledge_router)
-app.include_router(ticketing_router)
+# Versioned Routes Pattern
+api_v1_prefix = "/api/v1"
+app.include_router(auth_router, prefix=api_v1_prefix)
+app.include_router(chat_router, prefix=api_v1_prefix)
+app.include_router(knowledge_router, prefix=api_v1_prefix)
+app.include_router(ticketing_router, prefix=api_v1_prefix)
+app.include_router(copilot_router, prefix=api_v1_prefix)
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Helix Support Intelligence API"}
+    return {"message": "Welcome to Euron AI API (Helix Support Intelligence Implementation)"}
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "2.1.0"}
 
+# Quick role-based access check endpoints (legacy/debug)
 @app.get("/api/agent/tickets", dependencies=[Depends(require_role(["agent", "admin"]))])
 def get_agent_tickets(user: User = Depends(require_role(["agent", "admin"]))):
     return {"message": f"Welcome Agent! Here are tickets for tenant: {user.tenant_id}"}

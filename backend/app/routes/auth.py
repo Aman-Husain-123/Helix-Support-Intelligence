@@ -9,7 +9,7 @@ from ..core.security import get_password_hash, verify_password, create_token, ge
 from ..core.config import settings
 from ..schemas.user import UserCreate, UserResponse, Token
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/signup", response_model=UserResponse)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):

@@ -21,7 +21,7 @@ export function useChat(userId: string) {
     }, [userId]);
 
     const connect = () => {
-        const wsUrl = `ws://127.0.0.1:8000/api/chat/ws/${userId}`;
+        const wsUrl = `ws://127.0.0.1:8000/api/v1/chat/ws/${userId}`;
         socketRef.current = new WebSocket(wsUrl);
 
         socketRef.current.onopen = () => setIsConnected(true);

@@ -7,7 +7,7 @@ from ..schemas.ticketing import TicketCreate, TicketResponse, DetailedTicketResp
 from ..services.ticketing_service import TicketingService
 from ..services.ai_service import AIService
 
-router = APIRouter(prefix="/api/ticketing", tags=["ticketing"])
+router = APIRouter(prefix="/ticketing", tags=["ticketing"])
 
 @router.post("/create", response_model=TicketResponse)
 def create_ticket(
@@ -118,41 +118,6 @@ def assign_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     ticket.assignee_id = assignee_id
-    db.commit()
-    db.refresh(ticket)
-    return ticket
-
-@router.post("/{ticket_id}/suggest")
-def suggest_reply_ai(
-    ticket_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["agent", "admin"]))
-):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    
-    # Simple logic to gather context
-    suggestion = AIService.suggest_agent_reply(
-        query=ticket.description or "",
-        history=ticket.messages,
-        knowledge_chunks=[] # Could inject chunks here
-    )
-    return {"suggestion": suggestion}
-
-@router.post("/{ticket_id}/summarize", response_model=TicketResponse)
-def summarize_ticket(
-    ticket_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["agent", "admin"]))
-):
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-
-    messages = ticket.messages
-    summary = AIService.generate_ticket_summary(ticket.subject, ticket.description or "", messages)
-    ticket.ai_summary = summary
     db.commit()
     db.refresh(ticket)
     return ticket

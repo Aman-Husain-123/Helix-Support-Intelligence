@@ -31,7 +31,7 @@ export default function RoleLoginPage() {
         formData.append('password', password);
 
         try {
-            const res = await fetch('http://localhost:8000/api/auth/login', {
+            const res = await fetch('http://localhost:8000/api/v1/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData,
@@ -39,7 +39,15 @@ export default function RoleLoginPage() {
 
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.detail || 'Incorrect credentials');
+                let errMsg = 'Incorrect credentials';
+                if (data.detail) {
+                    if (Array.isArray(data.detail)) {
+                        errMsg = data.detail.map((e: any) => e.msg).join(', ');
+                    } else {
+                        errMsg = data.detail;
+                    }
+                }
+                throw new Error(errMsg);
             }
 
             const data = await res.json();
@@ -103,6 +111,7 @@ export default function RoleLoginPage() {
                             <input
                                 type="email"
                                 required
+                                value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className={`w-full px-5 py-4 bg-surface-950 border border-surface-800 rounded-[20px] text-white outline-none focus:border-opacity-50 transition-all placeholder:text-surface-700 focus:ring-4 focus:ring-opacity-5 ring-current`}
                                 style={{ borderColor: email ? 'rgba(var(--current-color), 0.2)' : undefined }}
@@ -114,6 +123,7 @@ export default function RoleLoginPage() {
                             <input
                                 type="password"
                                 required
+                                value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className={`w-full px-5 py-4 bg-surface-950 border border-surface-800 rounded-[20px] text-white outline-none focus:border-opacity-50 transition-all placeholder:text-surface-700 focus:ring-4 focus:ring-opacity-5 ring-current`}
                                 placeholder="••••••••"

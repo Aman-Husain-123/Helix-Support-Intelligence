@@ -11,12 +11,14 @@ connect_args = {"check_same_thread": False} if not is_postgresql else {}
 
 try:
     engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+    # Test connection
+    with engine.connect() as conn:
+        pass
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
 except Exception as e:
-    print(f"Error connecting to DB: {e}")
-    # Fallback for dev if needed
-    engine = create_engine("sqlite:///./fallback.db", connect_args={"check_same_thread": False})
+    print(f"PostgreSQL connection failed, falling back to SQLite: {e}")
+    engine = create_engine("sqlite:///./helix_dev.db", connect_args={"check_same_thread": False})
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
 

@@ -87,6 +87,9 @@ function WorkspaceView({ user }: any) {
 
     useEffect(() => {
         fetchTickets();
+        // Poll every 5s so new customer tickets appear live
+        const interval = setInterval(fetchTickets, 5000);
+        return () => clearInterval(interval);
     }, [activeTab]);
 
     useEffect(() => {
@@ -94,10 +97,9 @@ function WorkspaceView({ user }: any) {
     }, [selectedTicketId]);
 
     const fetchTickets = async () => {
-        setLoading(true);
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/all?status=${activeTab}`, {
+            const res = await fetch(`http://127.0.0.1:8000/api/v1/ticketing/all?status=${activeTab}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setTickets(await res.json());
@@ -108,7 +110,7 @@ function WorkspaceView({ user }: any) {
     const fetchTicketDetail = async () => {
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}`, {
+            const res = await fetch(`http://127.0.0.1:8000/api/v1/ticketing/${selectedTicketId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setTicketDetail(await res.json());
@@ -119,27 +121,32 @@ function WorkspaceView({ user }: any) {
         e?.preventDefault();
         if (!reply.trim() || !selectedTicketId) return;
         const token = localStorage.getItem('access_token');
+        const sentReply = reply;
+        setReply('');
         try {
-            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/message`, {
+            const res = await fetch(`http://localhost:8000/api/v1/ticketing/${selectedTicketId}/message`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify({ content: reply })
+                body: JSON.stringify({ content: sentReply })
             });
             if (res.ok) {
-                setReply('');
                 fetchTicketDetail();
+                // Also refresh ticket list to update any unread indicators
+                fetchTickets();
+            } else {
+                setReply(sentReply); // restore on failure
             }
-        } catch (e) { }
+        } catch (e) { setReply(sentReply); }
     };
 
     const updateStatus = async (newStatus: string) => {
         if (!selectedTicketId) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/status`, {
+            const res = await fetch(`http://localhost:8000/api/v1/ticketing/${selectedTicketId}/status`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -158,7 +165,7 @@ function WorkspaceView({ user }: any) {
         if (!selectedTicketId) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/summarize`, {
+            const res = await fetch(`http://localhost:8000/api/v1/copilot/summarize?ticket_id=${selectedTicketId}`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -176,7 +183,7 @@ function WorkspaceView({ user }: any) {
         // I need an endpoint for it.
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/suggest`, {
+            const res = await fetch(`http://localhost:8000/api/v1/copilot/suggest-reply?ticket_id=${selectedTicketId}`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` }
             });

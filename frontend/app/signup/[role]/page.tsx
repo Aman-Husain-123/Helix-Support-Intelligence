@@ -28,7 +28,7 @@ export default function RoleSignupPage() {
         setLoading(true);
 
         try {
-            const res = await fetch('http://localhost:8000/api/auth/signup', {
+            const res = await fetch('http://localhost:8000/api/v1/auth/signup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, role, tenant_id: tenantId }),
@@ -36,7 +36,15 @@ export default function RoleSignupPage() {
 
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.detail || 'Signup failed');
+                let errMsg = 'Signup failed';
+                if (data.detail) {
+                    if (Array.isArray(data.detail)) {
+                        errMsg = data.detail.map((e: any) => e.msg).join(', ');
+                    } else {
+                        errMsg = data.detail;
+                    }
+                }
+                throw new Error(errMsg);
             }
 
             // Immediately redirect to login for this role upon success
@@ -84,6 +92,7 @@ export default function RoleSignupPage() {
                             <input
                                 type="email"
                                 required
+                                value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className={`w-full px-5 py-4 bg-surface-950 border border-surface-800 rounded-[20px] text-white outline-none transition-all placeholder:text-surface-700 focus:ring-4 focus:ring-opacity-5 ring-current`}
                                 placeholder="name@company.com"
@@ -94,6 +103,7 @@ export default function RoleSignupPage() {
                             <input
                                 type="text"
                                 required
+                                value={tenantId}
                                 onChange={(e) => setTenantId(e.target.value)}
                                 className={`w-full px-5 py-4 bg-surface-950 border border-surface-800 rounded-[20px] text-white outline-none transition-all placeholder:text-surface-700 focus:ring-4 focus:ring-opacity-5 ring-current`}
                                 placeholder="E.g. AcmeCorp"
@@ -104,6 +114,7 @@ export default function RoleSignupPage() {
                             <input
                                 type="password"
                                 required
+                                value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className={`w-full px-5 py-4 bg-surface-950 border border-surface-800 rounded-[20px] text-white outline-none transition-all placeholder:text-surface-700 focus:ring-4 focus:ring-opacity-5 ring-current`}
                                 placeholder="Minimum 8 characters"

@@ -51,14 +51,18 @@ class Ticket(Base):
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Could be a registered user
     customer_email = Column(String, index=True) # Or just an email
     subject = Column(String, nullable=False)
-    status = Column(String, default="open") # open, in_progress, resolved, closed
+    description = Column(Text, nullable=True)
+    status = Column(String, default="open") # open, pending, resolved, closed
     priority = Column(String, default="medium") # low, medium, high, urgent
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    ai_summary = Column(Text, nullable=True)
+    sla_due_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    closed_at = Column(DateTime(timezone=True), nullable=True)
 
     assignee = relationship("User", foreign_keys=[assignee_id])
-    messages = relationship("Message", back_populates="ticket")
+    messages = relationship("Message", back_populates="ticket", cascade="all, delete-orphan")
 
 class Message(Base):
     __tablename__ = "messages"

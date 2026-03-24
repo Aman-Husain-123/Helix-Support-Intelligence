@@ -5,7 +5,7 @@ import { useUser } from '../../hooks/useUser';
 import { useChat } from '../../hooks/useChat';
 import {
     Bot, MessageSquare, Ticket as TicketIcon, Bell, Settings, LogOut,
-    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon
+    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon, Plus, X
 } from 'lucide-react';
 
 const SIDE_ICONS = [
@@ -125,35 +125,122 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
     );
 }
 
-function TicketsView() {
+function TicketsView({ user }: any) {
+    const [tickets, setTickets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showCreate, setShowCreate] = useState(false);
+    const [formData, setFormData] = useState({ subject: '', description: '', priority: 'medium' });
+
+    useEffect(() => {
+        fetchTickets();
+    }, []);
+
+    const fetchTickets = async () => {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/ticketing/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setTickets(await res.json());
+        } catch (e) { }
+        setLoading(false);
+    };
+
+    const handleCreate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/ticketing/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify(formData)
+            });
+            if (res.ok) {
+                setShowCreate(false);
+                setFormData({ subject: '', description: '', priority: 'medium' });
+                fetchTickets();
+            }
+        } catch (e) { }
+    };
+
     return (
-        <div className="flex-1 p-6 overflow-y-auto space-y-4">
-            <div>
-                <h2 className="text-lg font-bold text-white">My Tickets</h2>
-                <p className="text-surface-500 text-sm">Track the status of your support requests</p>
+        <div className="flex-1 p-8 overflow-y-auto space-y-6 relative">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white tracking-tight">Support Tickets</h2>
+                    <p className="text-surface-500 text-sm mt-1">Manage and track your active inquiries</p>
+                </div>
+                <button
+                    onClick={() => setShowCreate(true)}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
+                >
+                    <Plus size={16} /> New Ticket
+                </button>
             </div>
-            <div className="space-y-3">
-                {MY_TICKETS.map(t => (
-                    <div key={t.id} className="bg-surface-800/60 border border-surface-750 rounded-xl px-5 py-4 flex items-center justify-between hover:border-surface-600 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-4">
-                            <span className="text-surface-500 text-xs font-mono">{t.id}</span>
-                            <div>
-                                <p className="text-sm font-medium text-surface-200">{t.subject}</p>
-                                <p className="text-xs text-surface-500 mt-0.5">Updated {t.updated}</p>
+
+            {loading ? (
+                <div className="py-12 text-center text-surface-600">Loading your tickets...</div>
+            ) : tickets.length === 0 ? (
+                <div className="bg-surface-800/40 border-2 border-dashed border-surface-800 rounded-3xl p-20 text-center">
+                    <div className="w-16 h-16 bg-surface-800 rounded-2xl flex items-center justify-center mx-auto mb-4 text-surface-600"><TicketIcon size={32} /></div>
+                    <p className="text-surface-300 font-medium">No active tickets found</p>
+                    <p className="text-surface-600 text-sm mt-1">Need help? Create a new ticket or talk to our AI.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-4">
+                    {tickets.map(t => (
+                        <div key={t.id} className="bg-surface-800/60 border border-surface-750 p-6 rounded-2xl flex items-center justify-between group hover:border-surface-600 transition-all cursor-pointer">
+                            <div className="flex items-center gap-5">
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-bold ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>#{t.id.toString().slice(-4)}</div>
+                                <div>
+                                    <h3 className="text-white font-semibold group-hover:text-emerald-400 transition-colors">{t.subject}</h3>
+                                    <div className="flex items-center gap-4 mt-1">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${t.status === 'resolved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>{t.status}</span>
+                                        <span className="text-[10px] text-surface-600 flex items-center gap-1"><Clock size={10} /> {new Date(t.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                </div>
                             </div>
+                            <ArrowUpRight size={18} className="text-surface-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded capitalize ${STATUS_CHIP[t.status]}`}>{t.status}</span>
-                            <ArrowUpRight size={14} className="text-surface-600" />
+                    ))}
+                </div>
+            )}
+
+            {showCreate && (
+                <div className="absolute inset-0 z-50 bg-surface-950/80 backdrop-blur-md flex items-center justify-center p-6">
+                    <div className="bg-surface-900 border border-surface-800 rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-8 border-b border-surface-800 flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-white">Open New Ticket</h3>
+                            <button onClick={() => setShowCreate(false)} className="text-surface-500 hover:text-white transition-colors"><X size={20} /></button>
                         </div>
+                        <form onSubmit={handleCreate} className="p-8 space-y-5">
+                            <div>
+                                <label className="text-xs font-bold text-surface-500 uppercase tracking-widest block mb-2">Subject</label>
+                                <input required value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })} className="w-full bg-surface-800 border border-surface-750 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/50" placeholder="Summary of the issue..." />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-surface-500 uppercase tracking-widest block mb-2">Priority</label>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {['low', 'medium', 'high', 'urgent'].map(p => (
+                                        <button key={p} type="button" onClick={() => setFormData({ ...formData, priority: p })} className={`py-2 rounded-lg text-[10px] font-bold uppercase transition-all ${formData.priority === p ? 'bg-emerald-500 text-white' : 'bg-surface-800 text-surface-500 hover:bg-surface-750'}`}>{p}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-surface-500 uppercase tracking-widest block mb-2">Description</label>
+                                <textarea required rows={4} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full bg-surface-800 border border-surface-750 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/50 resize-none" placeholder="Explain the details..." />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 bg-surface-800 hover:bg-surface-750 text-surface-300 py-3 rounded-xl text-sm font-bold transition-all">Cancel</button>
+                                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/20 transition-all">Submit Ticket</button>
+                            </div>
+                        </form>
                     </div>
-                ))}
-            </div>
-            <div className="bg-surface-800/60 border border-dashed border-surface-700 rounded-xl p-8 text-center">
-                <Zap size={24} className="mx-auto text-surface-700 mb-2" />
-                <p className="text-sm text-surface-500">Need help with something new?</p>
-                <button className="mt-3 text-xs bg-accent-600 hover:bg-accent-500 text-white px-4 py-2 rounded-lg transition-colors">Start AI Chat</button>
-            </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -223,7 +310,7 @@ export default function CustomerDashboard() {
             </aside>
 
             {activeNav === 'ai' && <AIChat user={user} messages={messages} sendMessage={sendMessage} isTyping={isTyping} isConnected={isConnected} />}
-            {activeNav === 'tickets' && <TicketsView />}
+            {activeNav === 'tickets' && <TicketsView user={user} />}
             {activeNav === 'profile' && <ProfileView user={user} logout={logout} />}
             {activeNav === 'notifs' && (
                 <div className="flex-1 flex items-center justify-center flex-col gap-3 text-surface-600">

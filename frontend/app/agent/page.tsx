@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '../../hooks/useUser';
 import { useChat } from '../../hooks/useChat';
 import {
@@ -77,139 +77,222 @@ function StatsView({ user }: any) {
     );
 }
 
-function WorkspaceView({ user, selectedTicket, setSelectedTicket }: any) {
+function WorkspaceView({ user }: any) {
+    const [tickets, setTickets] = useState<any[]>([]);
+    const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+    const [ticketDetail, setTicketDetail] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState('open');
     const [reply, setReply] = useState('');
-    const [activeFilter, setActiveFilter] = useState('all');
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchTickets();
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (selectedTicketId) fetchTicketDetail();
+    }, [selectedTicketId]);
+
+    const fetchTickets = async () => {
+        setLoading(true);
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/all?status=${activeTab}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setTickets(await res.json());
+        } catch (e) { }
+        setLoading(false);
+    };
+
+    const fetchTicketDetail = async () => {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setTicketDetail(await res.json());
+        } catch (e) { }
+    };
+
+    const handleSend = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (!reply.trim() || !selectedTicketId) return;
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}/message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ content: reply })
+            });
+            if (res.ok) {
+                setReply('');
+                fetchTicketDetail();
+            }
+        } catch (e) { }
+    };
+
+    const updateStatus = async (newStatus: string) => {
+        if (!selectedTicketId) return;
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (res.ok) {
+                fetchTickets();
+                fetchTicketDetail();
+            }
+        } catch (e) { }
+    };
 
     return (
-        <div className="flex flex-1 min-h-0">
-            {/* Ticket List */}
-            <div className="w-64 border-r border-surface-800 flex flex-col shrink-0">
-                <div className="p-3 border-b border-surface-800">
-                    <div className="relative">
-                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500" />
-                        <input className="w-full bg-surface-800 text-surface-300 placeholder:text-surface-600 text-xs rounded-lg py-2 pl-8 pr-3 outline-none focus:ring-1 focus:ring-accent-500/50" placeholder="Search tickets..." />
-                    </div>
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* List */}
+            <div className="w-80 border-r border-surface-800 flex flex-col shrink-0">
+                <div className="px-4 py-3 border-b border-surface-800 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-widest">Queue</h3>
+                    <span className="text-[10px] bg-surface-800 text-surface-500 px-2 py-0.5 rounded-full font-bold">{tickets.length}</span>
                 </div>
-                <div className="flex border-b border-surface-800 px-3 gap-1 py-2">
-                    {['Inbox', 'Team', 'Channels'].map(f => (
-                        <button key={f} className={`px-2 py-1 rounded text-[10px] font-medium ${f === 'Inbox' ? 'bg-surface-800 text-white' : 'text-surface-500 hover:text-white'}`}>{f}</button>
+                <div className="flex border-b border-surface-800 px-3 gap-1 py-1 shrink-0 overflow-x-auto no-scrollbar">
+                    {['open', 'pending', 'resolved', 'closed'].map(t => (
+                        <button key={t} onClick={() => setActiveTab(t)} className={`px-2 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${activeTab === t ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-surface-600 hover:text-white'}`}>{t}</button>
                     ))}
                 </div>
-                <div className="px-3 py-2 space-y-0.5">
-                    {[{ label: 'All tickets', count: 4, id: 'all' }, { label: 'Assigned to me', count: 2, id: 'mine' }, { label: 'Unassigned', count: 0, id: 'unassigned' }, { label: 'Priority', count: 2, id: 'priority' }].map(f => (
-                        <button key={f.id} onClick={() => setActiveFilter(f.id)} className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${activeFilter === f.id ? 'bg-surface-800 text-white' : 'text-surface-500 hover:text-surface-300'}`}>
-                            <span>{f.label}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${f.count > 0 ? 'bg-accent-500/20 text-accent-400' : 'text-surface-600'}`}>{f.count}</span>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {loading ? (
+                        <div className="py-20 text-center text-surface-700 text-xs">Fetching queue...</div>
+                    ) : tickets.map(t => (
+                        <button key={t.id} onClick={() => setSelectedTicketId(t.id)} className={`w-full text-left p-4 rounded-2xl border transition-all relative group ${selectedTicketId === t.id ? 'bg-surface-800/80 border-surface-700' : 'bg-transparent border-transparent hover:bg-surface-800/40'}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${t.priority === 'urgent' ? 'bg-red-500/10 text-red-400' : 'bg-surface-800 text-surface-500'}`}>{t.priority}</span>
+                                <span className="text-[9px] text-surface-600">{new Date(t.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <h4 className={`text-sm font-bold truncate transition-colors ${selectedTicketId === t.id ? 'text-blue-400' : 'text-white group-hover:text-blue-300'}`}>{t.subject}</h4>
+                            <p className="text-[11px] text-surface-500 mt-0.5 truncate">{t.customer_email || 'Customer'}</p>
+                            {selectedTicketId === t.id && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-r-full shadow-[2px_0_10px_rgba(59,130,246,0.5)]" />}
                         </button>
                     ))}
                 </div>
-                <div className="px-3 py-1 overflow-y-auto flex-1">
-                    <p className="text-[9px] uppercase font-bold text-surface-600 tracking-wider mb-1">TICKETS</p>
-                    <div className="space-y-0.5">
-                        {MOCK_TICKETS.map(t => (
-                            <button key={t.id} onClick={() => setSelectedTicket(t)} className={`w-full text-left px-2 py-2.5 rounded-lg flex items-center gap-3 transition-colors ${selectedTicket?.id === t.id ? 'bg-surface-800' : 'hover:bg-surface-800/50'}`}>
-                                <div className={`w-7 h-7 rounded-full ${t.color} flex items-center justify-center text-[10px] font-bold shrink-0`}>{t.initials}</div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-surface-200 truncate">{t.customer}</span>
-                                        <span className="text-[10px] text-surface-500 shrink-0 ml-1">{t.time}</span>
-                                    </div>
-                                    <p className="text-[10px] text-surface-500 truncate">{t.subject}</p>
+            </div>
+
+            {/* Conversation */}
+            <div className="flex-1 flex flex-col min-h-0 bg-surface-900/30">
+                {ticketDetail ? (
+                    <>
+                        <div className="h-14 border-b border-surface-800 flex items-center justify-between px-6 shrink-0 bg-surface-900/50 backdrop-blur-sm">
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <h3 className="text-sm font-bold text-white">{ticketDetail.subject}</h3>
+                                    <p className="text-[10px] text-surface-500 mt-0.5">#{ticketDetail.id} · Created {new Date(ticketDetail.created_at).toLocaleString()}</p>
                                 </div>
-                                {t.unread > 0 && <span className="w-4 h-4 rounded-full bg-accent-500 text-[9px] font-bold flex items-center justify-center shrink-0">{t.unread}</span>}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Chat */}
-            <div className="flex-1 flex flex-col min-w-0">
-                <div className="h-12 border-b border-surface-800 flex items-center justify-between px-4 shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-7 h-7 rounded-full ${selectedTicket?.color} flex items-center justify-center text-[10px] font-bold`}>{selectedTicket?.initials}</div>
-                        <div>
+                            </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-white">{selectedTicket?.customer}</span>
-                                <span className="text-[10px] text-surface-500">{selectedTicket?.id}</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${selectedTicket?.status === 'resolved' ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'}`}>{selectedTicket?.status}</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${PRIORITY_BADGE[selectedTicket?.priority]}`}>{selectedTicket?.priority?.toLowerCase()} priority</span>
+                                <button onClick={() => updateStatus('pending')} className="text-[10px] px-3 py-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-yellow-400 transition-colors font-bold uppercase tracking-wider">Wait Client</button>
+                                <button onClick={() => updateStatus('resolved')} className="text-[10px] px-3 py-1.5 rounded-lg bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600 hover:text-white transition-all font-bold uppercase tracking-wider">Resolve</button>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button className="text-xs px-3 py-1.5 rounded-lg bg-surface-800 text-surface-300 hover:bg-surface-700 flex items-center gap-1.5"><Paperclip size={12} />Attach</button>
-                        <button className="text-xs px-3 py-1.5 rounded-lg bg-surface-800 text-green-400 hover:bg-surface-700 flex items-center gap-1.5"><Circle size={8} className="fill-green-400" />Close Ticket</button>
-                        <button className="text-xs px-3 py-1.5 rounded-lg bg-accent-600 text-white hover:bg-accent-500 font-medium">Join call</button>
-                    </div>
-                </div>
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
-                    <div className="flex items-center gap-3 text-[10px] text-surface-600"><div className="flex-1 h-px bg-surface-800" /><span>Today</span><div className="flex-1 h-px bg-surface-800" /></div>
-                    {MOCK_MESSAGES.map(msg => (
-                        <div key={msg.id} className={`flex gap-3 ${msg.sender === 'agent' ? 'justify-end' : 'justify-start'}`}>
-                            {msg.sender === 'customer' && <div className={`w-8 h-8 rounded-full ${msg.color} flex items-center justify-center text-[10px] font-bold shrink-0 mt-1`}>{msg.initials}</div>}
-                            <div className={`max-w-[60%] flex flex-col ${msg.sender === 'agent' ? 'items-end' : 'items-start'}`}>
-                                <div className="flex items-center gap-2 mb-1"><span className="text-xs font-semibold text-surface-300">{msg.name}</span><span className="text-[10px] text-surface-600">{msg.time}</span></div>
-                                <div className={`rounded-2xl px-4 py-3 text-sm ${msg.sender === 'agent' ? 'bg-accent-600 text-white rounded-tr-sm' : 'bg-surface-800 text-surface-200 rounded-tl-sm'}`}>{msg.text}</div>
-                                {msg.sender === 'agent' && <span className="text-[10px] text-surface-600 mt-1">✓ Read</span>}
+
+                        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                            <div className="bg-surface-800/40 border border-surface-750 p-6 rounded-3xl mb-8">
+                                <p className="text-[10px] font-black uppercase text-blue-500 mb-2 tracking-widest">Initial Inquiry</p>
+                                <p className="text-surface-200 text-sm leading-relaxed">{ticketDetail.description}</p>
                             </div>
-                            {msg.sender === 'agent' && <div className="w-8 h-8 rounded-full bg-surface-700 flex items-center justify-center text-xs font-bold shrink-0 mt-1">Y</div>}
+
+                            {ticketDetail.messages?.map((msg: any) => (
+                                <div key={msg.id} className={`flex gap-3 ${msg.sender_role === 'agent' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[70%] flex flex-col ${msg.sender_role === 'agent' ? 'items-end' : 'items-start'} gap-1`}>
+                                        <div className={`px-5 py-3 rounded-2xl text-sm leading-relaxed ${msg.sender_role === 'agent' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-surface-800 border border-surface-750 text-surface-200 rounded-tl-sm shadow-sm'}`}>
+                                            {msg.content}
+                                        </div>
+                                        <p className="text-[9px] text-surface-600 px-2 font-medium">{msg.sender_role.toUpperCase()} · {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-                <div className="border-t border-surface-800">
-                    <div className="flex items-center gap-1 px-4 py-2 border-b border-surface-800">
-                        {['Reply', 'Note', 'Email'].map(t => <button key={t} className={`text-xs px-3 py-1 rounded font-medium ${t === 'Reply' ? 'text-white bg-surface-800' : 'text-surface-500 hover:text-white'}`}>{t}</button>)}
+
+                        <div className="p-6 border-t border-surface-800 bg-surface-900/50">
+                            <form onSubmit={handleSend} className="bg-surface-800 border border-surface-750 rounded-2xl overflow-hidden focus-within:border-blue-500/50 transition-all shadow-xl">
+                                <textarea
+                                    value={reply}
+                                    onChange={e => setReply(e.target.value)}
+                                    rows={3}
+                                    className="w-full bg-transparent p-4 text-sm text-surface-200 placeholder:text-surface-600 outline-none resize-none"
+                                    placeholder={`Reply to ${ticketDetail.customer_email || 'customer'}...`}
+                                />
+                                <div className="px-4 py-2 bg-surface-800/50 border-t border-surface-750 flex items-center justify-between">
+                                    <div className="flex gap-4 opacity-50"><Paperclip size={14} /><Star size={14} /><Tag size={14} /></div>
+                                    <button type="submit" disabled={!reply.trim()} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${reply.trim() ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-surface-700 text-surface-500'}`}>Send Reply</button>
+                                </div>
+                            </form>
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-20 text-center text-surface-700 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.03)_0%,transparent_70%)]">
+                        <MessageSquare size={64} className="mb-4 opacity-20" />
+                        <h3 className="text-lg font-bold text-surface-600">No ticket selected</h3>
+                        <p className="text-sm mt-1 max-w-xs">Select a request from the sidebar to view details and start helping.</p>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-800">
-                        {[Bold, Italic, Code, Link2].map((Icon, i) => <button key={i} className="text-surface-600 hover:text-surface-300"><Icon size={13} /></button>)}
-                    </div>
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <input value={reply} onChange={e => setReply(e.target.value)} className="flex-1 bg-transparent text-surface-300 placeholder:text-surface-600 text-sm outline-none" placeholder="Reply to the customer..." />
-                        <button className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${reply.trim() ? 'bg-accent-600 text-white hover:bg-accent-500' : 'bg-surface-800 text-surface-500'}`}> Send <Send size={12} /></button>
-                    </div>
-                    <p className="text-[10px] text-surface-700 px-4 pb-2">Enter to send · Shift+Enter for new line</p>
-                </div>
+                )}
             </div>
 
-            {/* Right Details */}
-            <div className="w-64 border-l border-surface-800 flex flex-col overflow-y-auto shrink-0">
-                <div className="flex items-center gap-1 border-b border-surface-800 px-4 py-3">
-                    {['AI Assistant', 'Ticket', 'Timeline'].map(t => <button key={t} className={`flex-1 text-[10px] py-1.5 rounded font-medium ${t === 'Ticket' ? 'bg-surface-800 text-white' : 'text-surface-500 hover:text-white'}`}>{t}</button>)}
-                </div>
-                <div className="p-4 border-b border-surface-800">
-                    <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] text-surface-500 font-mono">{selectedTicket?.id}</span>
-                        <MoreHorizontal size={14} className="text-surface-600 cursor-pointer hover:text-white" />
-                    </div>
-                    <h3 className="text-sm font-bold text-white mb-4">{selectedTicket?.subject}</h3>
-                    {[{ label: 'Customer', value: selectedTicket?.customer }, { label: 'Channel', value: selectedTicket?.channel }, { label: 'Assignee', value: 'Alex Rivera' }, { label: 'Priority', value: selectedTicket?.priority, red: true }, { label: 'SLA Limit', value: '12:13 AM' }].map(({ label, value, red }) => (
-                        <div key={label} className="flex items-center justify-between py-1.5 border-b border-surface-800/50">
-                            <span className="text-[11px] text-surface-500">{label}</span>
-                            <span className={`text-[11px] font-medium ${red ? 'text-red-400' : 'text-surface-300'}`}>{value}</span>
-                        </div>
-                    ))}
-                    <div className="flex gap-2 mt-4">
-                        <button className="flex-1 py-2 rounded-lg bg-surface-800 text-surface-300 hover:bg-surface-700 text-xs font-medium">Reassign</button>
-                        <button className="flex-1 py-2 rounded-lg bg-amber-500/80 text-white hover:bg-amber-500 text-xs font-medium">Re-open</button>
-                    </div>
-                </div>
-                <div className="p-4">
-                    <p className="text-[10px] uppercase font-bold text-surface-600 tracking-wider mb-3">Customer Details</p>
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-9 h-9 rounded-full ${selectedTicket?.color} flex items-center justify-center text-xs font-bold`}>{selectedTicket?.initials}</div>
-                        <span className="text-sm font-semibold text-white">{selectedTicket?.customer}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        {[{ label: 'Tickets', val: '1' }, { label: 'CSAT', val: '4.8' }, { label: 'Spent', val: '$2k' }].map(s => (
-                            <div key={s.label} className="bg-surface-800/60 rounded-lg p-2 text-center border border-surface-750">
-                                <p className="text-sm font-bold text-white">{s.val}</p>
-                                <p className="text-[10px] text-surface-500">{s.label}</p>
+            {/* Context Sidebar */}
+            <div className="w-72 border-l border-surface-800 flex flex-col overflow-y-auto shrink-0 bg-surface-950/20">
+                {ticketDetail && (
+                    <div className="p-6 space-y-8">
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-surface-600 tracking-widest mb-4">Customer Context</p>
+                            <div className="flex items-center gap-4 mb-5">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 text-lg font-bold">
+                                    {ticketDetail.customer_email?.[0].toUpperCase() || 'C'}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-white truncate w-40">{ticketDetail.customer_email || 'Anonymous'}</p>
+                                    <p className="text-[10px] text-surface-600">Customer ID: {ticketDetail.customer_id}</p>
+                                </div>
                             </div>
-                        ))}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-surface-800/40 p-3 rounded-xl border border-surface-800/50">
+                                    <p className="text-[9px] text-surface-600 uppercase font-black">Tickets</p>
+                                    <p className="text-lg font-bold text-white mt-1">1</p>
+                                </div>
+                                <div className="bg-surface-800/40 p-3 rounded-xl border border-surface-800/50">
+                                    <p className="text-[9px] text-surface-600 uppercase font-black">CSAT</p>
+                                    <p className="text-lg font-bold text-emerald-400 mt-1">N/A</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-[10px] font-black uppercase text-surface-600 tracking-widest mb-4">SLA Tracking</p>
+                            <div className="bg-surface-800/40 border border-surface-800/50 rounded-2xl p-4 space-y-4">
+                                <div>
+                                    <p className="text-[10px] text-surface-500">Deadline</p>
+                                    <p className="text-xs font-bold text-white mt-1">{ticketDetail.sla_due_at ? new Date(ticketDetail.sla_due_at).toLocaleString() : 'N/A'}</p>
+                                </div>
+                                <div className="h-1.5 bg-surface-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 w-[65%]" />
+                                </div>
+                                <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest">In Policy</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-blue-600/10 border border-blue-500/20 p-5 rounded-[24px]">
+                            <p className="text-[10px] font-black uppercase text-blue-400 tracking-widest mb-3 flex items-center gap-2"><Zap size={10} /> AI Summary</p>
+                            <p className="text-xs text-blue-100/70 italic leading-relaxed">
+                                {ticketDetail.ai_summary || "AI is analyzing this ticket context... Summary will appear here shortly."}
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
@@ -218,7 +301,6 @@ function WorkspaceView({ user, selectedTicket, setSelectedTicket }: any) {
 export default function AgentDashboard() {
     const { user, loading, logout } = useUser('agent');
     const [activeNav, setActiveNav] = useState('workspace');
-    const [selectedTicket, setSelectedTicket] = useState(MOCK_TICKETS[0]);
 
     if (loading) return (
         <div className="h-screen w-screen flex items-center justify-center bg-surface-900">
@@ -257,7 +339,7 @@ export default function AgentDashboard() {
                 </header>
 
                 <div className="flex-1 flex overflow-hidden">
-                    {activeNav === 'workspace' && <WorkspaceView user={user} selectedTicket={selectedTicket} setSelectedTicket={setSelectedTicket} />}
+                    {activeNav === 'workspace' && <WorkspaceView user={user} />}
                     {activeNav === 'analytics' && <StatsView user={user} />}
                     {activeNav !== 'workspace' && activeNav !== 'analytics' && (
                         <div className="flex-1 flex items-center justify-center flex-col gap-3 text-surface-600">

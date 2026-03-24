@@ -36,3 +36,5 @@ npm-debug.log*
 # Other
 coverage/
 dist/
+*.db
+.pytest_cache/

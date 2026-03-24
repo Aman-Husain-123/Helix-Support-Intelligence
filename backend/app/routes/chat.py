@@ -2,13 +2,8 @@ from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 from typing import List, Dict
 import json
 import asyncio
-from ..services.ai_service import generate_ai_response, get_embeddings
-# Mocking a simple vector search for now
-def mock_vector_search(query_embedding: List[float]):
-    return [
-        {"text": "Our Pro Plan costs $29/mo and includes unlimited API access.", "source": "pricing_faq.pdf"},
-        {"text": "Helix Support Intelligence uses RAG to ground AI responses in your data.", "source": "product_overview.md"}
-    ]
+from ..services.ai_service import AIService
+from ..services.ingestion_service import vector_search
 
 # Connection Manager for WebSockets
 class ConnectionManager:
@@ -32,6 +27,12 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     await manager.connect(user_id, websocket)
+    db = next(get_db())
+    # Identify tenant for RAG isolation
+    user = db.query(User).filter(User.id == int(user_id) if user_id.isdigit() else 0).first()
+    tenant_id = user.tenant_id if user else "default"
+    db.close()
+    
     history = []
     failed_attempts = 0 # for human escalation
     
@@ -42,19 +43,15 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             user_query = message.get("text", "")
             
             # --- RAG Pipeline ---
-            # 1. Embeddings (Mocked if no API key)
             try:
-                # Actual code would use get_embeddings(user_query)
-                # For demo purposes, we search context
-                context_chunks = mock_vector_search([0.1]*1536) 
-                context_str = "\n".join([c["text"] + f" (Source: {c['source']})" for c in context_chunks])
+                # 1. Embeddings & Search (using real vector_search)
+                query_embedding = AIService.get_embeddings(user_query)
+                context_chunks = vector_search(query_embedding, tenant_id=tenant_id)
                 
-                # 2. Generate AI Response grounded in context
-                # To avoid real API key requirement in demonstration mode, we'll mock response
-                # But the code structure is correct.
-                # ai_response = generate_ai_response(user_query, context_str, history)
-                
-                ai_response = f"I see you're asking about '{user_query}'. Based on our documentation, {context_chunks[0]['text']} [{context_chunks[0]['source']}]"
+                # 2. Generate grounded response
+                ai_output = AIService.generate_ai_response(user_query, context_chunks, history)
+                ai_response = ai_output["text"]
+                sources = ai_output["sources"]
                 
                 # Update history
                 history.append({"role": "user", "content": user_query})
@@ -63,26 +60,54 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 # Format response with source attribution
                 payload = {
                     "text": ai_response,
-                    "sources": [c["source"] for c in context_chunks],
+                    "sources": sources,
                     "status": "success",
                     "type": "ai"
                 }
 
                 await websocket.send_text(json.dumps(payload))
                 
-                # Reset counter if success
-                failed_attempts = 0
+                # AI Logic: Simple 'I don't know' check for escalation
+                if "Logic Error" in ai_response or "trouble" in ai_response.lower():
+                    failed_attempts += 1
+                else:
+                    failed_attempts = 0
 
             except Exception as e:
                 failed_attempts += 1
-                error_response = {"text": f"Error: {str(e)}", "type": "error"}
-                await websocket.send_text(json.dumps(error_response))
+                error_payload = {
+                    "text": f"I'm experiencing a technical glitch: {str(e)}",
+                    "type": "error",
+                    "status": "fail"
+                }
+                await websocket.send_text(json.dumps(error_payload))
                 
-                if failed_attempts >= 3:
-                    await websocket.send_text(json.dumps({
-                        "text": "I'm having trouble finding the right answer. Would you like me to connect you with a human agent?",
-                        "type": "escalation"
-                    }))
+            # Escalation Check
+            if failed_attempts >= 3:
+                await websocket.send_text(json.dumps({
+                    "text": "It seems I'm unable to resolve your specifically complex query. Connecting you to an available human agent now...",
+                    "type": "escalation",
+                    "action": "open_ticket"
+                }))
+                failed_attempts = 0
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
+
+@router.post("/message")
+async def rest_chat_fallback(request: dict):
+    """REST API Fallback for when WebSocket is unavailable."""
+    user_query = request.get("text", "")
+    history = request.get("history", [])
+    tenant_id = request.get("tenant_id", "default")
+    
+    # Run the same RAG pipeline
+    query_embedding = AIService.get_embeddings(user_query)
+    context_chunks = vector_search(query_embedding, tenant_id=tenant_id)
+    ai_output = AIService.generate_ai_response(user_query, context_chunks, history)
+    
+    return {
+        "text": ai_output["text"],
+        "sources": ai_output["sources"],
+        "type": "ai"
+    }

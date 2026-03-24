@@ -75,8 +75,10 @@ def _get_embeddings(chunks: List[str]) -> List[List[float]]:
     return [item.embedding for item in resp.data]
 
 
+from ..core.database import KnowledgeDocument, KnowledgeChunk, get_db
+
 def run_ingestion_pipeline(doc_id: int, text: str):
-    """Background threaded ingestion: chunk → embed → store."""
+    """Background threaded ingestion: chunk → embed → store in DB."""
     db: Session = next(get_db())
     doc = db.query(KnowledgeDocument).filter(KnowledgeDocument.id == doc_id).first()
     if not doc:
@@ -89,16 +91,23 @@ def run_ingestion_pipeline(doc_id: int, text: str):
         chunks = _chunk_text(text)
         embeddings = _get_embeddings(chunks)
 
-        # Store in memory vector store
-        VECTOR_STORE[str(doc_id)] = [
-            {"chunk": chunk, "embedding": emb}
-            for chunk, emb in zip(chunks, embeddings)
-        ]
+        # 1. Clear old chunks (for re-ingestion)
+        db.query(KnowledgeChunk).filter(KnowledgeChunk.document_id == doc_id).delete()
+
+        # 2. Save new chunks
+        for chunk, emb in zip(chunks, embeddings):
+            new_chunk = KnowledgeChunk(
+                tenant_id=doc.tenant_id,
+                document_id=doc_id,
+                content=chunk,
+                vector_json=json.dumps(emb)
+            )
+            db.add(new_chunk)
 
         doc.status = "ready"
         doc.chunk_count = len(chunks)
         db.commit()
-        logger.info(f"Document {doc_id} ingested: {len(chunks)} chunks")
+        logger.info(f"Document {doc_id} ingested: {len(chunks)} chunks saved to DB.")
 
     except Exception as e:
         logger.error(f"Ingestion failed for doc {doc_id}: {e}")
@@ -138,21 +147,33 @@ def ingest_url(doc_id: int, url: str):
     thread.start()
 
 
-def vector_search(query_embedding: List[float], doc_ids: Optional[List[int]] = None, top_k: int = 5) -> List[dict]:
-    """Simple cosine similarity search over the in-memory vector store."""
+def vector_search(query_embedding: List[float], tenant_id: str, top_k: int = 5) -> List[dict]:
+    """Search persisted knowledge chunks for relevant context."""
     import numpy as np
+    db = next(get_db())
+    
+    # 1. Fetch chunks for the specific tenant
+    chunks = db.query(KnowledgeChunk).filter(KnowledgeChunk.tenant_id == tenant_id).all()
+    
+    if not chunks:
+        db.close()
+        return []
 
     results = []
-    search_ids = [str(d) for d in doc_ids] if doc_ids else list(VECTOR_STORE.keys())
-
     q = np.array(query_embedding)
     q_norm = np.linalg.norm(q)
 
-    for doc_id in search_ids:
-        for entry in VECTOR_STORE.get(doc_id, []):
-            v = np.array(entry["embedding"])
-            score = float(np.dot(q, v) / (q_norm * np.linalg.norm(v) + 1e-9))
-            results.append({"doc_id": doc_id, "chunk": entry["chunk"], "score": score})
+    for chunk in chunks:
+        if not chunk.vector_json:
+            continue
+        v = np.array(json.loads(chunk.vector_json))
+        score = float(np.dot(q, v) / (q_norm * np.linalg.norm(v) + 1e-9))
+        results.append({
+            "text": chunk.content, 
+            "score": score,
+            "source": chunk.document.name if chunk.document else "Unknown"
+        })
 
+    db.close()
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]

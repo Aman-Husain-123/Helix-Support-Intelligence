@@ -75,6 +75,18 @@ class Message(Base):
 
     ticket = relationship("Ticket", back_populates="messages")
 
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunks"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    document_id = Column(Integer, ForeignKey("knowledge_documents.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    # Storing vector as JSON string for SQLite/Universal support
+    vector_json = Column(Text, nullable=True) 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    document = relationship("KnowledgeDocument")
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():

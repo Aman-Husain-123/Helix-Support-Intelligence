@@ -5,7 +5,7 @@ import { useUser } from '../../hooks/useUser';
 import { useChat } from '../../hooks/useChat';
 import {
     Bot, MessageSquare, Ticket as TicketIcon, Bell, Settings, LogOut,
-    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon, Plus, X
+    Send, Zap, Star, Clock, CheckCircle2, ArrowUpRight, User as UserIcon, Plus, X, AlertTriangle, BookOpen
 } from 'lucide-react';
 
 const SIDE_ICONS = [
@@ -84,9 +84,19 @@ function AIChat({ user, messages, sendMessage, isTyping, isConnected }: any) {
                         <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} gap-1`}>
                             <div className={`rounded-2xl px-5 py-3 text-sm leading-relaxed ${msg.sender === 'user' ? 'bg-accent-600 text-white rounded-tr-sm' : 'bg-surface-800 border border-surface-700 text-surface-200 rounded-tl-sm'}`}>
                                 <p>{msg.text}</p>
+
+                                {msg.type === 'escalation' && (
+                                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                                        <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={10} /> Intelligence Upgrade Required</p>
+                                        <p className="text-xs text-surface-400 mb-4 font-medium italic">It seems this request is complex. I've alerted our team to help you faster.</p>
+                                        <button onClick={() => { /* logic to switch to tickets tab */ }} className="w-full py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-red-500/10">Open Priority Ticket</button>
+                                    </div>
+                                )}
+
                                 {msg.sources?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-surface-700">
-                                        {msg.sources.map((s: string, i: number) => <span key={i} className="text-[10px] bg-surface-700 text-surface-400 px-2 py-0.5 rounded border border-surface-600">[{i + 1}] {s}</span>)}
+                                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-surface-750">
+                                        <p className="w-full text-[9px] font-black text-surface-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><BookOpen size={9} /> Sources Verified</p>
+                                        {msg.sources.map((s: string, i: number) => <span key={i} className="text-[9px] bg-accent-500/10 text-accent-400 px-2 py-0.5 rounded border border-accent-500/20 font-bold">[{i + 1}] {s}</span>)}
                                     </div>
                                 )}
                             </div>
@@ -138,7 +148,7 @@ function TicketsView({ user }: any) {
     const fetchTickets = async () => {
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/ticketing/me', {
+            const res = await fetch('http://localhost:8000/api/ticketing/me', {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setTickets(await res.json());
@@ -150,7 +160,7 @@ function TicketsView({ user }: any) {
         e.preventDefault();
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/ticketing/create', {
+            const res = await fetch('http://localhost:8000/api/ticketing/create', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

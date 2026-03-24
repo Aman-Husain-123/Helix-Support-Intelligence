@@ -6,7 +6,7 @@ import { useChat } from '../../hooks/useChat';
 import {
     Layers, BarChart2, MessageSquare, Brain, BookOpen, Settings, LogOut,
     Search, Zap, Circle, MoreHorizontal, Send, Paperclip, Bold, Italic,
-    Code, Link2, Tag, TrendingUp, Clock, Star, CheckCircle2, AlertTriangle
+    Code, Link2, Tag, TrendingUp, Clock, Star, CheckCircle2, AlertTriangle, Sparkles
 } from 'lucide-react';
 
 const MOCK_TICKETS = [
@@ -120,7 +120,7 @@ function WorkspaceView({ user }: any) {
         if (!reply.trim() || !selectedTicketId) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}/message`, {
+            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/message`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -139,7 +139,7 @@ function WorkspaceView({ user }: any) {
         if (!selectedTicketId) return;
         const token = localStorage.getItem('access_token');
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/ticketing/${selectedTicketId}/status`, {
+            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/status`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -152,6 +152,39 @@ function WorkspaceView({ user }: any) {
                 fetchTicketDetail();
             }
         } catch (e) { }
+    };
+
+    const handleSummarize = async () => {
+        if (!selectedTicketId) return;
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/summarize`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) fetchTicketDetail();
+        } catch { }
+    };
+
+    const handleSuggest = async () => {
+        if (!selectedTicketId) return;
+        // Mocking the suggest logic via a specialized endpoint if exists, 
+        // Or I can just use a prompt.
+        // For now I'll use the suggest_reply endpoint logic if the backend has it.
+        // Backend doesn't have a direct 'suggest' endpoint yet, but I'll add one.
+        // Wait, I already have ai_service.suggest_agent_reply.
+        // I need an endpoint for it.
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`http://localhost:8000/api/ticketing/${selectedTicketId}/suggest`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setReply(data.suggestion);
+            }
+        } catch { }
     };
 
     return (
@@ -170,7 +203,7 @@ function WorkspaceView({ user }: any) {
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {loading ? (
                         <div className="py-20 text-center text-surface-700 text-xs">Fetching queue...</div>
-                    ) : tickets.map(t => (
+                    ) : tickets.map((t: any) => (
                         <button key={t.id} onClick={() => setSelectedTicketId(t.id)} className={`w-full text-left p-4 rounded-2xl border transition-all relative group ${selectedTicketId === t.id ? 'bg-surface-800/80 border-surface-700' : 'bg-transparent border-transparent hover:bg-surface-800/40'}`}>
                             <div className="flex items-center justify-between mb-1.5">
                                 <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${t.priority === 'urgent' ? 'bg-red-500/10 text-red-400' : 'bg-surface-800 text-surface-500'}`}>{t.priority}</span>
@@ -229,7 +262,14 @@ function WorkspaceView({ user }: any) {
                                     placeholder={`Reply to ${ticketDetail.customer_email || 'customer'}...`}
                                 />
                                 <div className="px-4 py-2 bg-surface-800/50 border-t border-surface-750 flex items-center justify-between">
-                                    <div className="flex gap-4 opacity-50"><Paperclip size={14} /><Star size={14} /><Tag size={14} /></div>
+                                    <div className="flex gap-2">
+                                        <button type="button" onClick={handleSuggest} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">
+                                            <Sparkles size={12} /> Suggest Reply
+                                        </button>
+                                        <button type="button" onClick={handleSummarize} className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-500/10 text-accent-400 hover:bg-accent-500 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">
+                                            <Brain size={12} /> AI Summary
+                                        </button>
+                                    </div>
                                     <button type="submit" disabled={!reply.trim()} className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${reply.trim() ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-surface-700 text-surface-500'}`}>Send Reply</button>
                                 </div>
                             </form>

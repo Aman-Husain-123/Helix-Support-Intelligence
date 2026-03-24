@@ -7,7 +7,9 @@ interface User {
     tenant_id: string;
 }
 
-export function useUser(requiredRole?: string, redirectUrl: string = '/login') {
+export function useUser(requiredRole?: string) {
+    const defaultRedirect = requiredRole ? `/login/${requiredRole}` : '/login/customer';
+
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
@@ -16,7 +18,7 @@ export function useUser(requiredRole?: string, redirectUrl: string = '/login') {
         const token = localStorage.getItem('access_token');
 
         if (!token) {
-            if (requiredRole) router.push(redirectUrl);
+            router.push(defaultRedirect);
             setLoading(false);
             return;
         }
@@ -26,27 +28,31 @@ export function useUser(requiredRole?: string, redirectUrl: string = '/login') {
             const payload: User = JSON.parse(atob(payloadBase64));
 
             // Role-based routing validation
-            if (requiredRole && payload.role !== requiredRole) {
-                // Auto-redirect to correct dashboard based on actual role
-                if (payload.role === 'admin') router.push('/admin');
-                else if (payload.role === 'agent') router.push('/agent');
-                else router.push('/');
-            } else {
-                setUser(payload);
+            if (requiredRole) {
+                if (payload.role !== requiredRole) {
+                    // CRITICAL: Prevent role leakage. If hit wrong dashboard, redirect home based on role.
+                    if (payload.role === 'admin') router.push('/admin');
+                    else if (payload.role === 'agent') router.push('/agent');
+                    else router.push('/customer');
+                    return;
+                }
             }
+
+            // If we're here, either no role was required or role matches.
+            setUser(payload);
         } catch (e) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
-            if (requiredRole) router.push(redirectUrl);
+            router.push(defaultRedirect);
         }
 
         setLoading(false);
-    }, [requiredRole, redirectUrl, router]);
+    }, [requiredRole, defaultRedirect, router]);
 
     const logout = () => {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        router.push('/login');
+        router.push(defaultRedirect);
     };
 
     return { user, loading, logout };

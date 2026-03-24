@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from .routes.auth import router as auth_router
 from .routes.chat import router as chat_router
+from .routes.knowledge import router as knowledge_router
 from .core.security import require_role
 from .core.database import User
 
@@ -10,7 +11,11 @@ app = FastAPI(title="Helix Support Intelligence API")
 # Setup CORS for Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,6 +23,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(chat_router)
+app.include_router(knowledge_router)
 
 @app.get("/")
 def read_root():

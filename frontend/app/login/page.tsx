@@ -1,88 +1,68 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bot } from 'lucide-react';
+import { Bot, Shield, Briefcase, User as UserIcon, Zap, ArrowLeft } from 'lucide-react';
 
-export default function LoginPage() {
+export default function GlobalLoginDirectory() {
     const router = useRouter();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-
-        const formData = new URLSearchParams();
-        formData.append('username', email); // OAuth2 expects username
-        formData.append('password', password);
-
-        try {
-            const res = await fetch('http://127.0.0.1:8000/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData,
-            });
-
-            if (!res.ok) {
-                throw new Error('Incorrect credentials');
-            }
-
-            const data = await res.json();
-            localStorage.setItem('access_token', data.access_token);
-            localStorage.setItem('refresh_token', data.refresh_token);
-
-            // Decode JWT to get role and redirect
-            const payloadBase64 = data.access_token.split('.')[1];
-            const payload = JSON.parse(atob(payloadBase64));
-
-            if (payload.role === 'admin') router.push('/admin');
-            else if (payload.role === 'agent') router.push('/agent');
-            else router.push('/'); // Customer chat dashboard
-
-        } catch (err: any) {
-            setError(err.message);
-        }
-    };
 
     return (
-        <div className="min-h-screen bg-surface-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-3xl shadow-xl shadow-brand-500/10 border border-surface-100">
-                <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 bg-gradient-to-tr from-brand-600 to-brand-400 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand-500/30 mb-4">
-                        <Bot size={32} />
+        <div className="min-h-screen bg-surface-950 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+            {/* Background Glow */}
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-accent-500/10 blur-[100px] rounded-full -z-0" />
+
+            <div className="max-w-2xl w-full text-center mb-12 relative z-10">
+                <button
+                    onClick={() => router.push('/')}
+                    className="mb-8 inline-flex items-center gap-2 text-surface-500 hover:text-white transition-colors text-sm font-medium"
+                >
+                    <ArrowLeft size={16} /> Back to Home
+                </button>
+                <div className="flex justify-center mb-6">
+                    <div className="w-16 h-16 bg-gradient-to-tr from-accent-600 to-accent-400 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-accent-500/30">
+                        <Zap size={32} />
                     </div>
-                    <h2 className="text-center text-3xl font-extrabold text-surface-900 tracking-tight">Sign in to Helix</h2>
                 </div>
+                <h1 className="text-4xl font-extrabold text-white tracking-tight">
+                    Sign in to Helix
+                </h1>
+                <p className="mt-3 text-lg text-surface-500">
+                    Select the portal you wish to access
+                </p>
+            </div>
 
-                <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-                    {error && <div className="text-red-500 text-sm text-center bg-red-50 py-2 rounded-lg font-medium">{error}</div>}
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-sm font-semibold text-surface-700">Email Address</label>
-                            <input type="email" required onChange={(e) => setEmail(e.target.value)}
-                                className="mt-1 w-full px-4 py-3 border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all placeholder:text-surface-400"
-                                placeholder="bob@acme.com" />
-                        </div>
-                        <div>
-                            <label className="text-sm font-semibold text-surface-700">Password</label>
-                            <input type="password" required onChange={(e) => setPassword(e.target.value)}
-                                className="mt-1 w-full px-4 py-3 border border-surface-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
-                                placeholder="••••••••" />
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl w-full relative z-10">
+                {/* Admin Portal */}
+                <button onClick={() => router.push('/login/admin')} className="bg-surface-900/50 backdrop-blur-sm p-8 rounded-[32px] border border-white/5 hover:border-purple-500/30 hover:-translate-y-1 transition-all text-left group">
+                    <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400 mb-6 group-hover:bg-purple-500 group-hover:text-white transition-all">
+                        <Shield size={24} />
                     </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Admin Portal</h3>
+                    <p className="text-surface-500 text-sm leading-relaxed">Centralized environment for system configuration and team analytics.</p>
+                </button>
 
-                    <button type="submit" className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-brand-600 hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-all shadow-lg shadow-brand-500/30 text-lg">
-                        Log in
-                    </button>
-
-                    <div className="text-center text-sm">
-                        <span className="text-surface-500">Don't have an account? </span>
-                        <button type="button" onClick={() => router.push('/signup')} className="font-semibold text-brand-600 hover:text-brand-500 transition-colors">Sign up</button>
+                {/* Agent Portal */}
+                <button onClick={() => router.push('/login/agent')} className="bg-surface-900/50 backdrop-blur-sm p-8 rounded-[32px] border border-white/5 hover:border-blue-500/30 hover:-translate-y-1 transition-all text-left group">
+                    <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 mb-6 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                        <Briefcase size={24} />
                     </div>
-                </form>
+                    <h3 className="text-xl font-bold text-white mb-2">Agent Portal</h3>
+                    <p className="text-surface-500 text-sm leading-relaxed">High-performance workspace for ticket routing and AI co-piloted support.</p>
+                </button>
+
+                {/* Customer Portal */}
+                <button onClick={() => router.push('/login/customer')} className="bg-surface-900/50 backdrop-blur-sm p-8 rounded-[32px] border border-white/5 hover:border-accent-500/30 hover:-translate-y-1 transition-all text-left group">
+                    <div className="w-12 h-12 bg-accent-500/10 rounded-xl flex items-center justify-center text-accent-400 mb-6 group-hover:bg-accent-600 group-hover:text-white transition-all">
+                        <UserIcon size={24} />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Customer Portal</h3>
+                    <p className="text-surface-500 text-sm leading-relaxed">Direct line to instant AI support and personal ticket management history.</p>
+                </button>
+            </div>
+
+            <div className="mt-16 text-center text-surface-500 relative z-10 flex flex-col gap-4">
+                <p>New to Helix? <button onClick={() => router.push('/signup')} className="text-accent-400 font-semibold hover:text-accent-300 transition-all border-b border-accent-400/20">Create a workspace</button></p>
+                <p className="text-[10px] text-surface-700 max-w-md mx-auto">By signing in, you agree to our Terms of Service and Privacy Policy. Protected by Helix Shield.</p>
             </div>
         </div>
     );

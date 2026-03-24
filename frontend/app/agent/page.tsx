@@ -303,48 +303,58 @@ export default function AgentDashboard() {
     const [activeNav, setActiveNav] = useState('workspace');
 
     if (loading) return (
-        <div className="h-screen w-screen flex items-center justify-center bg-surface-900">
-            <div className="w-2 h-2 rounded-full bg-accent-500 animate-ping" />
+        <div className="h-screen w-screen flex items-center justify-center bg-surface-950">
+            <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
         </div>
     );
 
     return (
-        <div className="flex h-screen bg-surface-900 text-white font-sans overflow-hidden text-sm">
-            <aside className="w-14 bg-surface-950 flex flex-col items-center py-3 border-r border-surface-800 shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mb-5 shadow-lg shadow-blue-500/20"><Zap size={16} /></div>
-                <div className="mb-4 text-[8px] font-black text-blue-400 uppercase tracking-widest text-center">Agent</div>
-                <nav className="flex flex-col gap-1 flex-1 w-full px-2">
+        <div className="flex h-screen bg-surface-950 text-white font-sans selection:bg-blue-500/30 overflow-hidden text-sm">
+            {/* Ultra-compact Sidebar */}
+            <aside className="w-[68px] bg-surface-950 flex flex-col items-center py-6 border-r border-surface-800/50 shrink-0 z-50">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-[14px] flex items-center justify-center mb-10 shadow-lg shadow-blue-500/20">
+                    <Zap size={20} className="text-white fill-white" />
+                </div>
+
+                <nav className="flex flex-col gap-3 flex-1 w-full px-2">
                     {SIDE_NAV.map(({ icon: Icon, label, id }) => (
-                        <button key={id} onClick={() => setActiveNav(id)} title={label} className={`w-full flex flex-col items-center justify-center h-12 rounded-lg transition-all text-[9px] gap-1 ${activeNav === id ? 'bg-surface-800 text-blue-400' : 'text-surface-600 hover:bg-surface-800/50 hover:text-surface-300'}`}>
-                            <Icon size={16} /><span>{label}</span>
+                        <button
+                            key={id}
+                            onClick={() => setActiveNav(id)}
+                            title={label}
+                            className={`w-full aspect-square flex items-center justify-center rounded-xl transition-all relative group ${activeNav === id ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'text-surface-600 hover:text-white hover:bg-surface-800'}`}
+                        >
+                            <Icon size={20} />
+                            {activeNav === id && <span className="absolute -right-2 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-blue-500 rounded-l-full shadow-[0_0_15px_rgba(59,130,246,0.5)]" />}
+                            <div className="absolute left-full ml-4 px-3 py-1.5 bg-surface-800 text-xs font-bold rounded-lg border border-surface-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                                {label}
+                            </div>
                         </button>
                     ))}
                 </nav>
-                <div className="flex flex-col items-center gap-3 mb-2">
-                    <button onClick={logout} title="Sign out" className="text-surface-600 hover:text-white"><LogOut size={15} /></button>
-                    <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold">{user?.sub?.[0]?.toUpperCase() ?? 'A'}</div>
+
+                <div className="flex flex-col items-center gap-6 mb-2">
+                    <div className="w-1 h-1 rounded-full bg-green-500 ring-4 ring-green-500/20" title="Online" />
+                    <button onClick={logout} title="Sign out" className="text-surface-600 hover:text-white transition-colors"><LogOut size={18} /></button>
+                    <div className="w-9 h-9 rounded-xl bg-surface-800 border border-surface-700 flex items-center justify-center text-xs font-bold text-blue-400">
+                        {user?.sub?.[0]?.toUpperCase() ?? 'A'}
+                    </div>
                 </div>
             </aside>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="h-12 border-b border-surface-800 flex items-center justify-between px-4 shrink-0">
-                    <div className="flex items-center gap-2 capitalize font-semibold text-surface-300">
-                        {activeNav}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-surface-500">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-green-400 font-medium">agent · available</span>
-                        <span className="border-l border-surface-800 pl-3">{user?.tenant_id}</span>
-                    </div>
-                </header>
-
-                <div className="flex-1 flex overflow-hidden">
+            {/* Main Content Area (No Header) */}
+            <div className="flex-1 flex flex-col min-w-0 bg-surface-900/20">
+                <div className="flex-1 overflow-hidden">
                     {activeNav === 'workspace' && <WorkspaceView user={user} />}
                     {activeNav === 'analytics' && <StatsView user={user} />}
                     {activeNav !== 'workspace' && activeNav !== 'analytics' && (
-                        <div className="flex-1 flex items-center justify-center flex-col gap-3 text-surface-600">
-                            <Zap size={32} className="text-surface-700" />
-                            <p className="text-sm font-medium capitalize">{activeNav} — Coming soon</p>
+                        <div className="flex-1 h-full flex items-center justify-center flex-col gap-4 text-surface-700 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.03)_0%,transparent_70%)]">
+                            <div className="w-16 h-16 bg-surface-900 rounded-3xl border border-surface-800 flex items-center justify-center"><Zap size={32} /></div>
+                            <div className="text-center">
+                                <p className="text-sm font-bold text-surface-400 capitalize">{activeNav} View</p>
+                                <p className="text-xs mt-1">This module is currently being optimized for high-performance use.</p>
+                            </div>
+                            <button onClick={() => setActiveNav('workspace')} className="mt-4 text-xs font-bold text-blue-400 hover:text-blue-300">Return to Workspace</button>
                         </div>
                     )}
                 </div>

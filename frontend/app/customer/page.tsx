@@ -282,41 +282,142 @@ function ProfileView({ user, logout }: any) {
 
 export default function CustomerDashboard() {
     const { user, loading, logout } = useUser('customer');
+    const [activeNav, setActiveNav] = useState('overview');
     const { messages, sendMessage, isTyping, isConnected } = useChat(user?.sub || 'anonymous');
-    const [activeNav, setActiveNav] = useState('ai');
 
     if (loading) return (
-        <div className="h-screen w-screen flex items-center justify-center bg-surface-900">
-            <div className="w-2 h-2 rounded-full bg-accent-500 animate-ping" />
+        <div className="h-screen w-screen flex items-center justify-center bg-surface-950">
+            <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
         </div>
     );
 
-    return (
-        <div className="flex h-screen bg-surface-900 text-white font-sans text-sm overflow-hidden">
-            <aside className="w-14 bg-surface-950 flex flex-col items-center py-3 border-r border-surface-800 shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20"><Zap size={16} /></div>
-                <div className="mb-4 text-[8px] font-black text-emerald-500 uppercase tracking-tighter text-center">Customer</div>
-                <nav className="flex flex-col gap-1 flex-1 w-full px-2">
-                    {SIDE_ICONS.map(({ icon: Icon, label, id }) => (
-                        <button key={id} onClick={() => setActiveNav(id)} title={label} className={`w-full flex flex-col items-center justify-center h-12 rounded-lg transition-all text-[9px] gap-1 ${activeNav === id ? 'bg-surface-800 text-emerald-400' : 'text-surface-600 hover:bg-surface-800/50 hover:text-surface-400'}`}>
-                            <Icon size={16} /><span>{label}</span>
-                        </button>
-                    ))}
-                </nav>
-                <div className="flex flex-col items-center gap-3 mb-2">
-                    <button onClick={logout} title="Sign out" className="text-surface-600 hover:text-surface-300"><LogOut size={15} /></button>
-                    <div className="w-7 h-7 rounded-full bg-accent-600 flex items-center justify-center text-[10px] font-bold">{user?.sub?.[0]?.toUpperCase() ?? 'C'}</div>
-                </div>
-            </aside>
+    const NAV_ITEMS = [
+        { id: 'overview', label: 'Home', icon: Bot },
+        { id: 'ai', label: 'Ask AI', icon: Zap },
+        { id: 'tickets', label: 'My Tickets', icon: TicketIcon },
+        { id: 'notifs', label: 'Inbox', icon: Bell },
+    ];
 
-            {activeNav === 'ai' && <AIChat user={user} messages={messages} sendMessage={sendMessage} isTyping={isTyping} isConnected={isConnected} />}
-            {activeNav === 'tickets' && <TicketsView user={user} />}
-            {activeNav === 'profile' && <ProfileView user={user} logout={logout} />}
-            {activeNav === 'notifs' && (
-                <div className="flex-1 flex items-center justify-center flex-col gap-3 text-surface-600">
-                    <Bell size={32} className="text-surface-700" /><p className="text-sm">No new notifications</p>
+    return (
+        <div className="min-h-screen bg-surface-950 text-white font-sans selection:bg-emerald-500/30 selection:text-emerald-200 overflow-x-hidden">
+            {/* Top Navigation */}
+            <nav className="h-20 border-b border-surface-800/50 bg-surface-950/50 backdrop-blur-xl sticky top-0 z-50 px-8 flex items-center justify-between">
+                <div className="flex items-center gap-10">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <Zap size={20} className="text-white fill-white" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-lg font-black tracking-tighter leading-none">HELIX</span>
+                            <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">Support Hub</span>
+                        </div>
+                    </div>
+
+                    <div className="hidden md:flex items-center gap-1 bg-surface-900/50 p-1.5 rounded-2xl border border-surface-800/50">
+                        {NAV_ITEMS.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveNav(item.id)}
+                                className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 ${activeNav === item.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-surface-500 hover:text-white hover:bg-surface-800'}`}
+                            >
+                                <item.icon size={16} />
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            )}
+
+                <div className="flex items-center gap-6">
+                    <div className="hidden sm:flex flex-col items-end">
+                        <span className="text-xs font-bold text-white">{user?.sub?.split('@')[0]}</span>
+                        <span className="text-[10px] text-surface-600 font-medium uppercase tracking-widest">{user?.tenant_id} customer</span>
+                    </div>
+                    <div className="relative group">
+                        <button className="w-11 h-11 rounded-2xl bg-surface-900 border border-surface-800 flex items-center justify-center hover:border-emerald-500/50 transition-all group-hover:scale-105 active:scale-95 overflow-hidden">
+                            <UserIcon size={20} className="text-emerald-500" />
+                        </button>
+                        <div className="absolute top-full right-0 mt-3 w-56 bg-surface-900 border border-surface-800 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-2 z-[100]">
+                            <button onClick={() => setActiveNav('profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-surface-300 hover:bg-surface-800 hover:text-white transition-colors"><Settings size={16} />Settings</button>
+                            <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors"><LogOut size={16} />Sign Out</button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            {/* Main Content Area */}
+            <main className="max-w-7xl mx-auto px-8 py-10">
+                {activeNav === 'overview' && (
+                    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                        {/* Hero Section */}
+                        <div className="relative overflow-hidden bg-surface-900 rounded-[48px] p-16 border border-surface-800/50">
+                            <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
+                            <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-blue-500/5 rounded-full blur-[100px]" />
+
+                            <div className="relative z-10 max-w-2xl">
+                                <h1 className="text-6xl font-black text-white leading-[1.1] tracking-tight mb-6">
+                                    How can we <span className="text-emerald-500">help you</span> today?
+                                </h1>
+                                <p className="text-xl text-surface-400 leading-relaxed mb-10">
+                                    Search our knowledge base or chat with our AI agent to resolve issues instantly.
+                                </p>
+                                <div className="flex flex-wrap gap-4">
+                                    <button onClick={() => setActiveNav('ai')} className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-black shadow-xl shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-3">
+                                        <Bot size={20} /> Ask Helix AI
+                                    </button>
+                                    <button onClick={() => setActiveNav('tickets')} className="px-8 py-4 bg-surface-800 hover:bg-surface-750 text-white rounded-2xl font-black border border-surface-700 transition-all flex items-center gap-3">
+                                        <Plus size={20} /> Open a Ticket
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent Activity / Overview Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-surface-900/50 border border-surface-800 p-8 rounded-[32px] hover:border-surface-700 transition-all cursor-pointer" onClick={() => setActiveNav('tickets')}>
+                                <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6"><TicketIcon size={24} /></div>
+                                <h3 className="text-lg font-bold text-white mb-2">My Tickets</h3>
+                                <p className="text-surface-500 text-sm mb-6 leading-relaxed">View all your active support requests and their current status.</p>
+                                <div className="text-emerald-500 font-bold text-sm flex items-center gap-2 group">View dashboard <ArrowUpRight size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /></div>
+                            </div>
+                            <div className="bg-surface-900/50 border border-surface-800 p-8 rounded-[32px] hover:border-surface-700 transition-all cursor-pointer" onClick={() => setActiveNav('ai')}>
+                                <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500 mb-6"><MessageSquare size={24} /></div>
+                                <h3 className="text-lg font-bold text-white mb-2">Resolution Rate</h3>
+                                <p className="text-surface-500 text-sm mb-6 leading-relaxed">Our AI resolves 85% of queries instantly. Try chatting before opening a ticket.</p>
+                                <div className="text-blue-500 font-bold text-sm flex items-center gap-2 group">Start AI conversation <ArrowUpRight size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" /></div>
+                            </div>
+                            <div className="bg-emerald-600 p-8 rounded-[32px] shadow-2xl shadow-emerald-500/10">
+                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white mb-6"><Zap size={24} className="fill-white" /></div>
+                                <h3 className="text-lg font-bold text-white mb-2">Quick Support</h3>
+                                <p className="text-emerald-100/70 text-sm mb-6 leading-relaxed">Access our most common help articles instantly to save time.</p>
+                                <button className="bg-white text-emerald-600 px-6 py-2.5 rounded-xl font-black text-sm hover:bg-emerald-50 transition-all shadow-lg">Browse FAQ</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeNav === 'ai' && (
+                    <div className="h-[700px] bg-surface-900 border border-surface-800 rounded-[40px] overflow-hidden shadow-2xl">
+                        <AIChat user={user} messages={messages} sendMessage={sendMessage} isTyping={isTyping} isConnected={isConnected} />
+                    </div>
+                )}
+
+                {activeNav === 'tickets' && (
+                    <div className="bg-surface-900 border border-surface-800 rounded-[40px] p-4 min-h-[600px] shadow-2xl">
+                        <TicketsView user={user} />
+                    </div>
+                )}
+
+                {activeNav === 'profile' && <ProfileView user={user} logout={logout} />}
+
+                {activeNav === 'notifs' && (
+                    <div className="flex flex-col items-center justify-center py-40 bg-surface-900/40 border-2 border-dashed border-surface-800 rounded-[48px]">
+                        <div className="w-20 h-20 bg-surface-800 rounded-3xl flex items-center justify-center text-surface-600 mb-6"><Bell size={40} /></div>
+                        <h3 className="text-2xl font-bold text-surface-300">All caught up</h3>
+                        <p className="text-surface-600 text-base mt-2">New notifications will appear here as your tickets are updated.</p>
+                        <button onClick={() => setActiveNav('overview')} className="mt-8 px-6 py-2.5 bg-surface-800 hover:bg-surface-750 text-surface-300 rounded-xl text-sm font-bold transition-all">Back to Home</button>
+                    </div>
+                )}
+            </main>
         </div>
     );
 }

@@ -446,8 +446,8 @@ export default function AdminDashboard() {
     const [activeNav, setActiveNav] = useState('dashboard');
 
     if (loading) return (
-        <div className="h-screen w-screen flex items-center justify-center bg-surface-900">
-            <div className="w-2 h-2 rounded-full bg-accent-500 animate-ping" />
+        <div className="h-screen w-screen flex items-center justify-center bg-surface-950">
+            <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
         </div>
     );
 
@@ -461,45 +461,83 @@ export default function AdminDashboard() {
     };
 
     return (
-        <div className="flex h-screen bg-surface-900 text-white font-sans overflow-hidden">
-            <aside className="w-16 bg-surface-950 flex flex-col items-center py-4 border-r border-surface-800 shrink-0">
-                <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mb-5 shadow-lg shadow-purple-500/30">
-                    <Zap size={18} className="text-white" />
+        <div className="flex h-screen bg-surface-950 text-white font-sans selection:bg-purple-500/30 overflow-hidden text-sm">
+            {/* Expanded Sidebar */}
+            <aside className="w-64 bg-surface-950 flex flex-col py-6 border-r border-surface-800/50 shrink-0">
+                <div className="px-6 mb-10 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                        <Zap size={20} className="text-white fill-white" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-lg font-black tracking-tighter leading-none">HELIX</span>
+                        <span className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mt-0.5">Control Center</span>
+                    </div>
                 </div>
-                <div className="mb-6 text-[8px] font-black text-purple-400 uppercase tracking-widest text-center">Admin</div>
-                <nav className="flex flex-col gap-1 flex-1 w-full px-2">
+
+                <nav className="flex-1 px-4 space-y-1">
+                    <p className="px-4 text-[10px] font-black text-surface-600 uppercase tracking-[0.2em] mb-4">Main Menu</p>
                     {NAV.map(({ icon: Icon, label, id }) => (
-                        <button key={id} onClick={() => setActiveNav(id)} title={label}
-                            className={`w-full flex items-center justify-center h-10 rounded-lg transition-all relative ${activeNav === id ? 'bg-surface-800 text-purple-400' : 'text-surface-500 hover:bg-surface-800/60 hover:text-surface-300'}`}>
-                            <Icon size={18} />
-                            {activeNav === id && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-purple-500 rounded-r-full" />}
+                        <button
+                            key={id}
+                            onClick={() => setActiveNav(id)}
+                            className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all relative group ${activeNav === id ? 'bg-purple-500 text-white shadow-xl shadow-purple-500/20' : 'text-surface-500 hover:text-white hover:bg-surface-800/50'}`}
+                        >
+                            <Icon size={18} className={activeNav === id ? 'text-white' : 'text-surface-600 group-hover:text-purple-400'} />
+                            <span className="font-bold tracking-tight">{label}</span>
+                            {activeNav === id && <ChevronRight size={14} className="ml-auto opacity-50" />}
                         </button>
                     ))}
                 </nav>
-                <button onClick={logout} title="Sign out" className="text-surface-600 hover:text-surface-300 transition-colors mb-2"><LogOut size={18} /></button>
-                <div className="w-8 h-8 rounded-full bg-accent-600 flex items-center justify-center text-xs font-bold">
-                    {user?.sub?.[0]?.toUpperCase() ?? 'A'}
+
+                <div className="px-4 mt-6">
+                    <div className="bg-surface-900 border border-surface-800 rounded-3xl p-4">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center text-xs font-black">
+                                {user?.sub?.[0]?.toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-xs font-bold text-white truncate">{user?.sub?.split('@')[0]}</p>
+                                <p className="text-[10px] text-surface-600 font-medium">Administrator</p>
+                            </div>
+                        </div>
+                        <button onClick={logout} className="w-full flex items-center justify-center gap-2 py-2 bg-surface-800 hover:bg-red-500/10 text-surface-400 hover:text-red-400 rounded-xl text-xs font-bold transition-all border border-transparent hover:border-red-500/20">
+                            <LogOut size={14} /> Sign Out
+                        </button>
+                    </div>
                 </div>
             </aside>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <header className="h-12 bg-surface-900 border-b border-surface-800 flex items-center justify-between px-6 shrink-0">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-surface-400 text-xs">All systems operational</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <button className="text-surface-500 hover:text-white transition-colors"><Search size={16} /></button>
-                        <button className="text-surface-500 hover:text-white transition-colors"><Bell size={16} /></button>
-                        <div className="flex items-center gap-2 text-xs text-surface-400 border-l border-surface-800 pl-4">
-                            <Shield size={12} className="text-accent-400" />
-                            <span className="text-surface-300 font-medium">Admin</span>
-                            <span>·</span>
-                            <span>{user?.tenant_id}</span>
+            {/* Content Area */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* System Header */}
+                <header className="h-20 bg-surface-950/50 backdrop-blur-xl border-b border-surface-800/50 flex items-center justify-between px-10 shrink-0">
+                    <div className="flex items-center gap-6">
+                        <div className="relative group">
+                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-600 group-focus-within:text-purple-400 transition-colors" />
+                            <input
+                                className="bg-surface-900 border border-surface-800 rounded-2xl py-2.5 pl-12 pr-6 text-sm text-surface-300 placeholder:text-surface-600 outline-none focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 w-80 transition-all"
+                                placeholder="Global search commands..."
+                            />
                         </div>
-                        <button onClick={logout} className="text-xs text-surface-500 hover:text-white transition-colors">Sign out</button>
+                        <div className="h-6 w-px bg-surface-800" />
+                        <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 px-4 py-1.5 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-green-400 uppercase tracking-widest">All systems nominal</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <button className="w-10 h-10 rounded-xl border border-surface-800 flex items-center justify-center text-surface-500 hover:text-white hover:bg-surface-800 transition-all relative">
+                            <Bell size={18} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-purple-500 rounded-full border-2 border-surface-950" />
+                        </button>
+                        <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-white uppercase tracking-tighter">{user?.tenant_id}</span>
+                            <span className="text-[10px] text-surface-600 font-medium">Core Enterprise V2</span>
+                        </div>
                     </div>
                 </header>
+
                 <main className="flex-1 overflow-hidden">
                     {views[activeNav]}
                 </main>

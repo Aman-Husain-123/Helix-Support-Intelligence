@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from .routes.auth import router as auth_router
+from .routes.chat import router as chat_router
 from .core.security import require_role
 from .core.database import User
 
@@ -16,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(chat_router)
 
 @app.get("/")
 def read_root():
